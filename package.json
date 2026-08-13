@@ -1,0 +1,36 @@
+{
+  "name": "@aurixnetwork/reward-server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Aurix Network reward authorization and claim execution server",
+  "type": "module",
+  "engines": {
+    "node": ">=22 <23"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "preflight:testnet": "tsx src/cli/preflight.ts",
+    "health:testnet": "tsx src/cli/health.ts",
+    "inspect:reward:testnet": "tsx src/cli/inspect-reward-contract.ts",
+    "inspect:irb:testnet": "tsx src/cli/inspect-irb-token.ts",
+    "db:migrate": "tsx src/cli/migrate-database.ts"
+  },
+  "dependencies": {
+    "dotenv": "17.4.2",
+    "ethers": "6.17.0",
+    "mysql2": "3.23.3",
+    "pino": "10.3.1",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "22.20.1",
+    "eslint": "10.8.1",
+    "tsx": "4.23.12",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.67.0",
+    "vitest": "4.1.10"
+  }
+}

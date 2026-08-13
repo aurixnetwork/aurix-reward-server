@@ -1,0 +1,176 @@
+import { getAddress } from "ethers";
+import { z } from "zod";
+
+import {
+  AURIX_REWARD_CONTRACT_ADDRESS,
+  BSC_TESTNET_CHAIN_ID,
+  IRB_TEST_TOKEN_ADDRESS,
+} from "./constants.js";
+
+const optionalNonEmptyString = z.preprocess(
+  (value) => (value === "" ? undefined : value),
+  z.string().min(1).optional(),
+);
+
+const httpUrl = z.url().refine(
+  (value) => ["http:", "https:"].includes(new URL(value).protocol),
+  "must use the http or https protocol",
+);
+
+const optionalUrl = z.preprocess(
+  (value) => (value === "" ? undefined : value),
+  httpUrl.optional(),
+);
+
+const environmentSchema = z
+  .object({
+    NODE_ENV: z
+      .enum(["development", "test", "production"])
+      .default("development"),
+    LOG_LEVEL: z
+      .enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"])
+      .default("info"),
+    BSC_TESTNET_RPC_URL: httpUrl,
+    BSC_TESTNET_RPC_URL_SECONDARY: optionalUrl,
+    BSC_TESTNET_CHAIN_ID: z.coerce.number().int().default(BSC_TESTNET_CHAIN_ID),
+    RPC_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(30_000).default(10_000),
+    AURIX_REWARD_CONTRACT_ADDRESS: z
+      .string()
+      .default(AURIX_REWARD_CONTRACT_ADDRESS),
+    IRB_TEST_TOKEN_ADDRESS: z.string().default(IRB_TEST_TOKEN_ADDRESS),
+    DB_HOST: optionalNonEmptyString,
+    DB_PORT: z.coerce.number().int().min(1).max(65_535).default(3_306),
+    DB_NAME: optionalNonEmptyString,
+    DB_USER: optionalNonEmptyString,
+    DB_PASSWORD: z.string().optional(),
+    DB_CONNECTION_LIMIT: z.coerce.number().int().min(1).max(100).default(10),
+  })
+  .superRefine((value, context) => {
+    if (value.BSC_TESTNET_CHAIN_ID !== BSC_TESTNET_CHAIN_ID) {
+      context.addIssue({
+        code: "custom",
+        message: `must equal the fixed BSC Testnet chain ID ${BSC_TESTNET_CHAIN_ID}`,
+        path: ["BSC_TESTNET_CHAIN_ID"],
+      });
+    }
+
+    validateBaselineAddress(
+      value.AURIX_REWARD_CONTRACT_ADDRESS,
+      AURIX_REWARD_CONTRACT_ADDRESS,
+      "AURIX_REWARD_CONTRACT_ADDRESS",
+      context,
+    );
+    validateBaselineAddress(
+      value.IRB_TEST_TOKEN_ADDRESS,
+      IRB_TEST_TOKEN_ADDRESS,
+      "IRB_TEST_TOKEN_ADDRESS",
+      context,
+    );
+
+    const databaseValues = [value.DB_HOST, value.DB_NAME, value.DB_USER];
+    if (databaseValues.some(Boolean) && databaseValues.some((entry) => !entry)) {
+      context.addIssue({
+        code: "custom",
+        message: "DB_HOST, DB_NAME, and DB_USER must be supplied together",
+        path: ["DB_HOST"],
+      });
+    }
+  });
+
+function validateBaselineAddress(
+  actual: string,
+  expected: string,
+  path: string,
+  context: z.core.$RefinementCtx<Record<string, unknown>>,
+): void {
+  try {
+    if (getAddress(actual) !== getAddress(expected)) {
+      context.addIssue({
+        code: "custom",
+        message: `must equal the fixed BSC Testnet address ${expected}`,
+        path: [path],
+      });
+    }
+  } catch {
+    context.addIssue({
+      code: "custom",
+      message: "must be a valid EVM address",
+      path: [path],
+    });
+  }
+}
+
+export interface DatabaseConfig {
+  readonly connectionLimit: number;
+  readonly database: string;
+  readonly host: string;
+  readonly password: string;
+  readonly port: number;
+  readonly user: string;
+}
+
+export interface AppConfig {
+  readonly contracts: {
+    readonly irbTokenAddress: string;
+    readonly rewardContractAddress: string;
+  };
+  readonly database: DatabaseConfig | undefined;
+  readonly logLevel: string;
+  readonly nodeEnv: "development" | "test" | "production";
+  readonly rpc: {
+    readonly expectedChainId: number;
+    readonly primaryUrl: string;
+    readonly secondaryUrl: string | undefined;
+    readonly timeoutMs: number;
+  };
+}
+
+export class ConfigurationError extends Error {
+  public readonly issues: readonly string[];
+
+  public constructor(issues: readonly string[]) {
+    super(`Invalid environment configuration: ${issues.join("; ")}`);
+    this.name = "ConfigurationError";
+    this.issues = issues;
+  }
+}
+
+export function loadEnvironment(source: NodeJS.ProcessEnv = process.env): AppConfig {
+  const result = environmentSchema.safeParse(source);
+  if (!result.success) {
+    throw new ConfigurationError(
+      result.error.issues.map(
+        (issue) => `${issue.path.join(".") || "environment"}: ${issue.message}`,
+      ),
+    );
+  }
+
+  const value = result.data;
+  const database =
+    value.DB_HOST && value.DB_NAME && value.DB_USER
+      ? {
+          connectionLimit: value.DB_CONNECTION_LIMIT,
+          database: value.DB_NAME,
+          host: value.DB_HOST,
+          password: value.DB_PASSWORD ?? "",
+          port: value.DB_PORT,
+          user: value.DB_USER,
+        }
+      : undefined;
+
+  return {
+    contracts: {
+      irbTokenAddress: getAddress(value.IRB_TEST_TOKEN_ADDRESS),
+      rewardContractAddress: getAddress(value.AURIX_REWARD_CONTRACT_ADDRESS),
+    },
+    database,
+    logLevel: value.LOG_LEVEL,
+    nodeEnv: value.NODE_ENV,
+    rpc: {
+      expectedChainId: value.BSC_TESTNET_CHAIN_ID,
+      primaryUrl: value.BSC_TESTNET_RPC_URL,
+      secondaryUrl: value.BSC_TESTNET_RPC_URL_SECONDARY,
+      timeoutMs: value.RPC_TIMEOUT_MS,
+    },
+  };
+}

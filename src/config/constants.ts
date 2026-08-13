@@ -1,0 +1,14 @@
+export const BSC_TESTNET_CHAIN_ID = 97;
+
+export const AURIX_REWARD_CONTRACT_ADDRESS =
+  "0x355D58c905f42F4f78abCD7413371F6EE4Dba137";
+
+export const IRB_TEST_TOKEN_ADDRESS =
+  "0x7daf7fE962B123A6698D5e3a109c551872790AeA";
+
+export const IRB_EXPECTED_NAME = "IRISBANK";
+export const IRB_EXPECTED_SYMBOL = "IRB";
+export const IRB_EXPECTED_DECIMALS = 18;
+
+export const REWARD_EIP712_NAME = "AurixRewardClaim";
+export const REWARD_EIP712_VERSION = "1";
