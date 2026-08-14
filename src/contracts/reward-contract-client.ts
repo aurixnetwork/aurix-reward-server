@@ -90,7 +90,7 @@ export class RewardContractClient {
   }
 
   public async getCampaign(campaignId: string): Promise<RewardCampaign> {
-    const campaign = (await this.contract.getFunction("getCampaign")(
+    const campaign = (await this.contract.getFunction("campaigns")(
       campaignId,
     )) as readonly [bigint, bigint, bigint, bigint, bigint, bigint, boolean, boolean];
     return {
@@ -142,14 +142,34 @@ export class RewardContractClient {
   }
 
   public async hasApproverRole(account: string): Promise<boolean> {
-    const role = await this.contract.getFunction("APPROVER_ROLE")() as string;
+    return this.hasRole(await this.getRoleId("APPROVER_ROLE"), account);
+  }
+
+  public async isPaused(): Promise<boolean> {
+    return this.contract.getFunction("paused")() as Promise<boolean>;
+  }
+
+  public async getRoleId(
+    role: "APPROVER_ROLE" | "CAMPAIGN_MANAGER_ROLE" | "DEFAULT_ADMIN_ROLE" | "TREASURY_ROLE",
+  ): Promise<string> {
+    return this.contract.getFunction(role)() as Promise<string>;
+  }
+
+  public async hasRole(role: string, account: string): Promise<boolean> {
     return this.contract.getFunction("hasRole")(
       role,
       getAddress(account),
     ) as Promise<boolean>;
   }
 
-  public async isPaused(): Promise<boolean> {
-    return this.contract.getFunction("paused")() as Promise<boolean>;
+  public async getClaimIntervalBounds(): Promise<{
+    readonly maximum: bigint;
+    readonly minimum: bigint;
+  }> {
+    const [minimum, maximum] = await Promise.all([
+      this.contract.getFunction("MIN_CLAIM_INTERVAL")() as Promise<bigint>,
+      this.contract.getFunction("MAX_CLAIM_INTERVAL")() as Promise<bigint>,
+    ]);
+    return { maximum, minimum };
   }
 }

@@ -16,6 +16,12 @@ export const REWARD_EIP712_VERSION = "1";
 export const TESTNET_APPROVER_ADDRESS =
   "0x425f7117D36aC8F45224E895e583b404E0a6eb05";
 
+export const TESTNET_ADMIN_ADDRESS =
+  "0x2A37820df48d298De3907557b02301A46C2e127f";
+
+export const TESTNET_OPERATIONS_ADDRESS =
+  "0x9B2fB8ED115242477C9a8Ea511a0D85E122E1FbE";
+
 export const REWARD_AUTHORIZATION_PRIMARY_TYPE = "RewardAuthorization";
 export const REWARD_AUTHORIZATION_TYPE_STRING =
   "RewardAuthorization(address claimant,uint256 amount,bytes32 campaignId,bytes32 rewardId,uint256 rewardNonce,uint256 validAfter,uint256 deadline)";

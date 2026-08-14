@@ -6,6 +6,7 @@ const READ_ONLY_ERC20_ABI = [
   "function decimals() view returns (uint8)",
   "function totalSupply() view returns (uint256)",
   "function balanceOf(address account) view returns (uint256)",
+  "function owner() view returns (address)",
 ] as const;
 
 export interface IrbTokenInspection {
@@ -45,5 +46,9 @@ export class IrbTokenClient {
       symbol,
       totalSupplyBaseUnits: totalSupply.toString(),
     };
+  }
+
+  public async owner(): Promise<string> {
+    return getAddress(await this.contract.getFunction("owner")() as string);
   }
 }
