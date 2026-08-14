@@ -8,6 +8,7 @@ import {
 import {
   ConfigurationError,
   loadEnvironment,
+  requireWalletEncryptionConfig,
 } from "../src/config/environment.js";
 
 const requiredEnvironment = {
@@ -48,6 +49,40 @@ describe("loadEnvironment", () => {
   it("requires database identity fields as a group", () => {
     expect(() =>
       loadEnvironment({ ...requiredEnvironment, DB_HOST: "localhost" }),
+    ).toThrow(ConfigurationError);
+  });
+
+  it("accepts a canonical Base64-encoded 32-byte wallet encryption key", () => {
+    const config = loadEnvironment({
+      ...requiredEnvironment,
+      WALLET_ENCRYPTION_KEY: Buffer.alloc(32, 1).toString("base64"),
+      WALLET_ENCRYPTION_KEY_VERSION: "2",
+    });
+    expect(config.walletEncryption?.key).toHaveLength(32);
+    expect(config.walletEncryption?.version).toBe(2);
+  });
+
+  it("rejects malformed Base64 wallet encryption keys", () => {
+    expect(() =>
+      loadEnvironment({
+        ...requiredEnvironment,
+        WALLET_ENCRYPTION_KEY: "not-base64!",
+      }),
+    ).toThrow(ConfigurationError);
+  });
+
+  it("rejects a decoded wallet encryption key with the wrong length", () => {
+    expect(() =>
+      loadEnvironment({
+        ...requiredEnvironment,
+        WALLET_ENCRYPTION_KEY: Buffer.alloc(31, 1).toString("base64"),
+      }),
+    ).toThrow(ConfigurationError);
+  });
+
+  it("rejects a missing wallet encryption key for wallet operations", () => {
+    expect(() =>
+      requireWalletEncryptionConfig(loadEnvironment(requiredEnvironment)),
     ).toThrow(ConfigurationError);
   });
 });

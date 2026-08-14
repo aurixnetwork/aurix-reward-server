@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -47,5 +47,22 @@ describe("migration discovery", () => {
     await expect(discoverMigrations(directory)).rejects.toThrow(
       "Invalid migration filename",
     );
+  });
+
+  it("defines the encrypted wallet schema without plaintext secret columns", async () => {
+    const migration = await readFile(
+      new URL(
+        "../database/migrations/0001_create_reward_user_wallets.sql",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+
+    expect(migration).toContain("CREATE TABLE reward_user_wallets");
+    expect(migration).toContain("UNIQUE KEY uq_reward_user_wallets_wallet_address");
+    expect(migration).toContain("encrypted_private_key");
+    expect(migration).toContain("encryption_auth_tag");
+    expect(migration).not.toMatch(/\bprivate_key\b/);
+    expect(migration).not.toMatch(/\bmnemonic\b/);
   });
 });
