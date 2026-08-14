@@ -13,6 +13,13 @@ export const IRB_EXPECTED_DECIMALS = 18;
 export const REWARD_EIP712_NAME = "AurixRewardClaim";
 export const REWARD_EIP712_VERSION = "1";
 
+export const TESTNET_APPROVER_ADDRESS =
+  "0x425f7117D36aC8F45224E895e583b404E0a6eb05";
+
+export const REWARD_AUTHORIZATION_PRIMARY_TYPE = "RewardAuthorization";
+export const REWARD_AUTHORIZATION_TYPE_STRING =
+  "RewardAuthorization(address claimant,uint256 amount,bytes32 campaignId,bytes32 rewardId,uint256 rewardNonce,uint256 validAfter,uint256 deadline)";
+
 export const DEFAULT_WALLET_ENCRYPTION_KEY_VERSION = 1;
 export const DEFAULT_TEST_WALLET_COUNT = 10;
 export const MAX_TEST_WALLET_COUNT = 100;

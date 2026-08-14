@@ -6,6 +6,7 @@ import {
   BSC_TESTNET_CHAIN_ID,
   DEFAULT_WALLET_ENCRYPTION_KEY_VERSION,
   IRB_TEST_TOKEN_ADDRESS,
+  TESTNET_APPROVER_ADDRESS,
 } from "./constants.js";
 
 const optionalNonEmptyString = z.preprocess(
@@ -26,6 +27,11 @@ const optionalUrl = z.preprocess(
 const optionalBoolean = z.preprocess(
   (value) => (value === "" || value === undefined ? undefined : value),
   z.enum(["true", "false"]).transform((value) => value === "true").optional(),
+);
+
+const optionalPositiveSafeInteger = z.preprocess(
+  (value) => (value === "" || value === undefined ? undefined : value),
+  z.coerce.number().int().positive().safe().optional(),
 );
 
 const DECIMAL_AMOUNT_PATTERN = /^(?:0|[1-9]\d*)(?:\.\d{1,18})?$/;
@@ -103,6 +109,9 @@ const environmentSchema = z
     TEST_WALLET_TARGET_TBNB: optionalNonEmptyString,
     MAX_FUNDING_GAS_PRICE_GWEI: optionalNonEmptyString,
     FUNDING_EXECUTION_ENABLED: optionalBoolean.default(false),
+    APPROVER_PRIVATE_KEY: optionalNonEmptyString,
+    APPROVER_ADDRESS: optionalNonEmptyString,
+    AUTHORIZATION_VALIDITY_SECONDS: optionalPositiveSafeInteger,
   })
   .superRefine((value, context) => {
     if (value.BSC_TESTNET_CHAIN_ID !== BSC_TESTNET_CHAIN_ID) {
@@ -165,6 +174,25 @@ const environmentSchema = z
           path: ["TESTNET_FUNDING_ADDRESS"],
         });
       }
+    }
+    if (value.APPROVER_PRIVATE_KEY) {
+      try {
+        void new Wallet(value.APPROVER_PRIVATE_KEY);
+      } catch {
+        context.addIssue({
+          code: "custom",
+          message: "must be a valid 32-byte EVM private key",
+          path: ["APPROVER_PRIVATE_KEY"],
+        });
+      }
+    }
+    if (value.APPROVER_ADDRESS) {
+      validateBaselineAddress(
+        value.APPROVER_ADDRESS,
+        TESTNET_APPROVER_ADDRESS,
+        "APPROVER_ADDRESS",
+        context,
+      );
     }
     for (const [field, amount] of [
       ["TEST_WALLET_TARGET_TBNB", value.TEST_WALLET_TARGET_TBNB],
@@ -237,6 +265,22 @@ export interface AppConfig {
   };
   readonly walletEncryption: WalletEncryptionConfig | undefined;
   readonly funding: FundingEnvironmentConfig;
+  readonly authorization: AuthorizationEnvironmentConfig;
+}
+
+export interface AuthorizationEnvironmentConfig {
+  readonly approverExpectedAddress: string;
+  readonly approverPrivateKey: string | undefined;
+  readonly validitySeconds: number | undefined;
+}
+
+export interface AuthorizationPolicyConfig {
+  readonly validitySeconds: number;
+}
+
+export interface ApproverConfig {
+  readonly address: string;
+  readonly privateKey: string;
 }
 
 export interface FundingEnvironmentConfig {
@@ -332,6 +376,13 @@ export function loadEnvironment(source: NodeJS.ProcessEnv = process.env): AppCon
           )
         : undefined,
     },
+    authorization: {
+      approverExpectedAddress: value.APPROVER_ADDRESS
+        ? getAddress(value.APPROVER_ADDRESS)
+        : getAddress(TESTNET_APPROVER_ADDRESS),
+      approverPrivateKey: value.APPROVER_PRIVATE_KEY,
+      validitySeconds: value.AUTHORIZATION_VALIDITY_SECONDS,
+    },
   };
 }
 
@@ -376,4 +427,31 @@ export function requireFundingConfig(config: AppConfig): FundingConfig {
     privateKey,
     targetBalanceWei: config.funding.targetBalanceWei as bigint,
   };
+}
+
+export function requireAuthorizationPolicy(
+  config: AppConfig,
+): AuthorizationPolicyConfig {
+  if (config.authorization.validitySeconds === undefined) {
+    throw new ConfigurationError([
+      "AUTHORIZATION_VALIDITY_SECONDS: explicit positive Unix-second validity is required",
+    ]);
+  }
+  return { validitySeconds: config.authorization.validitySeconds };
+}
+
+export function requireApproverConfig(config: AppConfig): ApproverConfig {
+  if (!config.authorization.approverPrivateKey) {
+    throw new ConfigurationError([
+      "APPROVER_PRIVATE_KEY: required for authorization signing",
+    ]);
+  }
+  const privateKey = config.authorization.approverPrivateKey;
+  const derivedAddress = new Wallet(privateKey).address;
+  if (derivedAddress !== config.authorization.approverExpectedAddress) {
+    throw new ConfigurationError([
+      "APPROVER_ADDRESS: configured/fixed expected address does not match APPROVER_PRIVATE_KEY",
+    ]);
+  }
+  return { address: derivedAddress, privateKey };
 }

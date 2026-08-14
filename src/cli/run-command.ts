@@ -2,6 +2,7 @@ import { ConfigurationError } from "../config/environment.js";
 import { createLogger } from "../logging/logger.js";
 import { PreflightValidationError } from "../blockchain/preflight.js";
 import { WalletValidationCommandError } from "../wallets/wallet-errors.js";
+import { AuthorizationBlockedError } from "../authorization/authorization-service.js";
 
 export async function runCommand(
   command: string,
@@ -29,6 +30,9 @@ function safeErrorDetails(error: unknown): Record<string, unknown> {
   }
   if (error instanceof WalletValidationCommandError) {
     return { report: error.report, type: error.name };
+  }
+  if (error instanceof AuthorizationBlockedError) {
+    return { code: error.code, type: error.name };
   }
   if (error instanceof Error) {
     return { type: error.name };

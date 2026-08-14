@@ -43,6 +43,7 @@ const REDACTED_PATHS = [
   "config.database.password",
   "config.walletEncryption.key",
   "config.funding.privateKey",
+  "config.authorization.approverPrivateKey",
   "config.rpc.primaryUrl",
   "config.rpc.secondaryUrl",
   "req.headers.authorization",

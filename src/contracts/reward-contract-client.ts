@@ -20,6 +20,24 @@ export interface RewardContractInspection {
   readonly rewardToken: string;
 }
 
+export interface RewardCampaign {
+  readonly active: boolean;
+  readonly budget: bigint;
+  readonly claimInterval: bigint;
+  readonly distributed: bigint;
+  readonly endTime: bigint;
+  readonly exists: boolean;
+  readonly maxRewardAmount: bigint;
+  readonly startTime: bigint;
+}
+
+export interface RewardClaimantState {
+  readonly claimIntervalElapsed: boolean;
+  readonly lastClaimAt: bigint;
+  readonly nextClaimAt: bigint;
+  readonly rewardNonce: bigint;
+}
+
 export class RewardContractClient {
   private readonly contract: Contract;
 
@@ -69,5 +87,69 @@ export class RewardContractClient {
       paused,
       rewardToken: getAddress(rewardToken),
     };
+  }
+
+  public async getCampaign(campaignId: string): Promise<RewardCampaign> {
+    const campaign = (await this.contract.getFunction("getCampaign")(
+      campaignId,
+    )) as readonly [bigint, bigint, bigint, bigint, bigint, bigint, boolean, boolean];
+    return {
+      active: campaign[6],
+      budget: campaign[0],
+      claimInterval: campaign[5],
+      distributed: campaign[1],
+      endTime: campaign[4],
+      exists: campaign[7],
+      maxRewardAmount: campaign[2],
+      startTime: campaign[3],
+    };
+  }
+
+  public async getClaimantState(
+    campaignId: string,
+    claimant: string,
+  ): Promise<RewardClaimantState> {
+    const normalizedClaimant = getAddress(claimant);
+    const [rewardNonce, lastClaimAt, nextClaimAt, claimIntervalElapsed] =
+      await Promise.all([
+        this.contract.getFunction("getRewardNonce")(campaignId, normalizedClaimant) as Promise<bigint>,
+        this.contract.getFunction("getLastClaimAt")(campaignId, normalizedClaimant) as Promise<bigint>,
+        this.contract.getFunction("getNextClaimAt")(campaignId, normalizedClaimant) as Promise<bigint>,
+        this.contract.getFunction("isClaimIntervalElapsed")(
+          campaignId,
+          normalizedClaimant,
+        ) as Promise<boolean>,
+      ]);
+    return { claimIntervalElapsed, lastClaimAt, nextClaimAt, rewardNonce };
+  }
+
+  public async getRewardNonce(
+    campaignId: string,
+    claimant: string,
+  ): Promise<bigint> {
+    return this.contract.getFunction("getRewardNonce")(
+      campaignId,
+      getAddress(claimant),
+    ) as Promise<bigint>;
+  }
+
+  public async isRewardIdUsed(rewardId: string): Promise<boolean> {
+    return this.contract.getFunction("usedRewardIds")(rewardId) as Promise<boolean>;
+  }
+
+  public async getAuthorizationTypeHash(): Promise<string> {
+    return this.contract.getFunction("REWARD_AUTHORIZATION_TYPEHASH")() as Promise<string>;
+  }
+
+  public async hasApproverRole(account: string): Promise<boolean> {
+    const role = await this.contract.getFunction("APPROVER_ROLE")() as string;
+    return this.contract.getFunction("hasRole")(
+      role,
+      getAddress(account),
+    ) as Promise<boolean>;
+  }
+
+  public async isPaused(): Promise<boolean> {
+    return this.contract.getFunction("paused")() as Promise<boolean>;
   }
 }
