@@ -1,6 +1,6 @@
 # Architecture
 
-## Phase 1 boundary
+## Phase 1 read-only boundary
 
 Phase 1 is a read-only integration layer. The command path is:
 
@@ -16,8 +16,28 @@ read-only Reward Contract and IRB clients
 structured, sanitized inspection result
 ```
 
-There is no signer, wallet loader, transaction builder, raw transaction,
-broadcaster, campaign mutation, funding operation, or scheduler in this phase.
+There is no transaction builder, raw transaction, broadcaster, campaign
+mutation, funding operation, or scheduler in this phase.
+
+## Phase 2 wallet path
+
+```text
+validated environment + database connectivity
+        |
+ethers test User Wallet generation
+        |
+AES-256-GCM encryption with address/version AAD
+        |
+atomic encrypted database insert and reload
+        |
+authenticated decryption + derived-address verification
+        |
+public-only CLI result
+```
+
+Phase 2's Wallet object exists only in controlled generation/decryption scope.
+No provider or signer is attached and no blockchain transaction is possible
+through the wallet commands.
 
 ## Modules
 
@@ -28,6 +48,8 @@ broadcaster, campaign mutation, funding operation, or scheduler in this phase.
   uses the canonical consumer ABI; the IRB wrapper exposes ERC-20 read methods.
 - `src/logging` emits JSON logs and redacts credential-shaped fields.
 - `src/database` provides a lazy mysql2 pool and checksum-pinned migration runner.
+- `src/wallets` owns generation, authenticated encryption, database persistence,
+  public projections, batch coordination, and validation.
 - `src/cli` owns explicit operational commands and always destroys RPC providers
   or closes database pools.
 

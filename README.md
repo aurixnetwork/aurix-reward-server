@@ -2,13 +2,13 @@
 
 Public backend repository for the Aurix Network reward authorization and self-claim system.
 
-## Phase 1 status
+## Phase 2 status
 
-Phase 1 provides the Node.js 22 / TypeScript / ESM foundation, deterministic
-tests, structured logging, validated configuration, MySQL/MariaDB migration
-foundation, and a strictly read-only BSC Testnet integration. No key or funded
-wallet is required, and none of the Phase 1 commands can sign or broadcast a
-transaction.
+Phase 1's strictly read-only BSC Testnet foundation remains intact. Phase 2 adds
+server-managed test User Wallet generation, AES-256-GCM encrypted storage,
+public-only listing, and authenticated wallet validation for MariaDB/MySQL.
+Phase 2 creates no campaign, sends no tBNB, executes no claim, and broadcasts no
+blockchain transaction.
 
 ## Fixed environment
 
@@ -30,7 +30,9 @@ cp .env.example .env
 ```
 
 Set `BSC_TESTNET_RPC_URL` in the untracked `.env`. A secondary RPC URL is
-optional. Phase 1 does not accept or require private-key settings.
+optional. Wallet operations additionally require the database identity settings
+and a backed-up `WALLET_ENCRYPTION_KEY`; see
+[Configuration](docs/CONFIGURATION.md). Never commit `.env`.
 
 ## Commands
 
@@ -42,6 +44,10 @@ npm run health:testnet
 npm run preflight:testnet
 npm run inspect:reward:testnet
 npm run inspect:irb:testnet
+npm run db:migrate
+npm run wallets:create:test -- --count 10
+npm run wallets:list:test
+npm run wallets:validate:test
 ```
 
 The health check validates RPC reachability and chain identity. The preflight
@@ -49,9 +55,10 @@ additionally validates both bytecodes, the configured addresses, `rewardToken()`
 IRB metadata, pause readability, and EIP-712 domain identity. Reports identify
 RPC endpoints only as `primary` or `secondary`; URLs are never emitted.
 
-Database configuration is optional for blockchain checks. With database values
-configured, `npm run db:migrate` initializes the migration ledger and applies
-versioned SQL files from `database/migrations`.
+Database configuration remains optional for blockchain checks. Wallet creation
+is an atomic database batch and prints public addresses only. Listing uses a
+public-only database projection. Validation decrypts ACTIVE records and confirms
+their derived ethers addresses without exposing key material.
 
 ## Architecture
 
@@ -59,7 +66,8 @@ The server verifies off-chain eligibility, creates an EIP-712 Approver authoriza
 
 The User Wallet is the transaction sender, gas payer, and reward recipient.
 
-That write path belongs to later phases and is not implemented in Phase 1.
+That blockchain write path belongs to later phases and is not implemented in
+Phase 2.
 
 ## Documentation
 
@@ -69,3 +77,5 @@ That write path belongs to later phases and is not implemented in Phase 1.
 - [Testnet baseline](docs/TESTNET_BASELINE.md)
 - [Database foundation](docs/DATABASE_FOUNDATION.md)
 - [Security model](docs/SECURITY_MODEL.md)
+- [Test User Wallet security](docs/WALLET_SECURITY.md)
+- [Test User Wallet operations](docs/TEST_WALLET_OPERATIONS.md)

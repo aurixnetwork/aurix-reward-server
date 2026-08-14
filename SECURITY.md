@@ -13,7 +13,7 @@ Never publish:
 
 Security findings should be reported privately before public disclosure.
 
-## Phase 1 controls
+## Phase 1 and Phase 2 controls
 
 - Phase 1 loads no wallet, funding, or Approver private keys.
 - Blockchain clients are constructed with providers only; no signer is present.
@@ -23,6 +23,18 @@ Security findings should be reported privately before public disclosure.
   rejects contract addresses outside the fixed testnet baseline.
 - `.env`, key, wallet, secret, export, and backup paths are ignored by Git.
 - CI requires no network credentials and performs no live blockchain actions.
+- Test User Wallet private keys are encrypted before database persistence with
+  AES-256-GCM, a random 12-byte IV, and address/version-bound authenticated data.
+- No mnemonic is stored. Public listing queries do not select encrypted fields.
+- Decryption validates GCM authentication and independently derives and compares
+  the expected EVM address.
+- Admin/Deployer, Approver, Operations, Funding, and test User Wallet roles must
+  remain separate.
+
+Back up `WALLET_ENCRYPTION_KEY` and its version in an approved secret manager.
+If this key is lost, encrypted User Wallet private keys may be permanently
+unrecoverable. If it is exposed, report the incident privately and treat wallets
+using that key version as compromised.
 
 Before reporting a suspected secret, avoid placing the value in an issue, log,
 or terminal transcript. Report only its type and location through a private

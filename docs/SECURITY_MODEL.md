@@ -1,16 +1,19 @@
 # Security model
 
-## Phase 1 guarantees
+## Phase 1 and Phase 2 guarantees
 
 - Only BSC Testnet chain ID 97 is accepted.
 - Only the fixed Reward Contract and IRB addresses are accepted.
 - Contract clients have providers but no signers.
-- No private key, seed phrase, encrypted wallet, or funding credential is loaded.
+- No Approver, Funding, Admin, or Operations credential is loaded.
+- Test User Wallet private keys exist only in controlled generation or
+  decryption scope and are stored only as authenticated ciphertext.
+- No mnemonic is stored or returned by the generator module.
 - No command creates campaigns, funds wallets, claims rewards, or sends a
   transaction.
 - Reports expose endpoint labels rather than RPC URLs.
-- Structured logging redacts private-key-, mnemonic-, password-, authorization-,
-  and RPC URL-shaped fields.
+- Structured logging redacts private-key-, mnemonic-, seed-, wallet-ciphertext-,
+  encryption-key-, password-, authorization-, and RPC URL-shaped fields.
 - CI runs offline deterministic checks and needs no secrets.
 
 ## Trust boundaries
