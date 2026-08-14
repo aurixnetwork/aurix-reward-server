@@ -81,4 +81,19 @@ describe("migration discovery", () => {
     expect(migration).not.toContain("raw_transaction");
     expect(migration).not.toContain("private_key");
   });
+
+  it("defines authorization replay constraints without private-key storage", async () => {
+    const migration = await readFile(
+      new URL(
+        "../database/migrations/0003_create_reward_authorization_jobs.sql",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+    expect(migration).toContain("CREATE TABLE reward_authorization_jobs");
+    expect(migration).toContain("uq_reward_authorization_jobs_reward_id");
+    expect(migration).toContain("uq_reward_authorization_jobs_nonce");
+    expect(migration).toContain("approver_signature");
+    expect(migration).not.toMatch(/approver_private_key|user_private_key|mnemonic/);
+  });
 });

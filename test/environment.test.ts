@@ -1,3 +1,4 @@
+import { Wallet } from "ethers";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -9,6 +10,8 @@ import {
   ConfigurationError,
   loadEnvironment,
   parsePositiveEtherAmount,
+  requireApproverConfig,
+  requireAuthorizationPolicy,
   requireFundingConfig,
   requireWalletEncryptionConfig,
 } from "../src/config/environment.js";
@@ -135,5 +138,58 @@ describe("loadEnvironment", () => {
       TESTNET_FUNDING_PRIVATE_KEY: fundingPrivateKey,
       TEST_WALLET_TARGET_TBNB: "0.01",
     }))).toThrow(ConfigurationError);
+  });
+
+  it("loads the fixed expected Approver and explicit validity policy", () => {
+    const config = loadEnvironment({
+      ...requiredEnvironment,
+      AUTHORIZATION_VALIDITY_SECONDS: "300",
+    });
+    expect(config.authorization.approverExpectedAddress).toBe(
+      "0x425f7117D36aC8F45224E895e583b404E0a6eb05",
+    );
+    expect(requireAuthorizationPolicy(config).validitySeconds).toBe(300);
+  });
+
+  it("rejects missing or invalid authorization validity", () => {
+    expect(() => requireAuthorizationPolicy(loadEnvironment(requiredEnvironment)))
+      .toThrow(ConfigurationError);
+    expect(() => loadEnvironment({
+      ...requiredEnvironment,
+      AUTHORIZATION_VALIDITY_SECONDS: "0",
+    })).toThrow(ConfigurationError);
+  });
+
+  it("rejects a non-baseline expected Approver address", () => {
+    expect(() => loadEnvironment({
+      ...requiredEnvironment,
+      APPROVER_ADDRESS: "0x0000000000000000000000000000000000000001",
+    })).toThrow(ConfigurationError);
+  });
+
+  it("derives and validates an ephemeral Approver config without exposing its key", () => {
+    const ephemeralKey = `0x${"88".repeat(32)}`;
+    const base = loadEnvironment(requiredEnvironment);
+    const ephemeralAddress = new Wallet(ephemeralKey).address;
+    const approver = requireApproverConfig({
+      ...base,
+      authorization: {
+        ...base.authorization,
+        approverExpectedAddress: ephemeralAddress,
+        approverPrivateKey: ephemeralKey,
+      },
+    });
+    expect(approver.address).toBe(ephemeralAddress);
+  });
+
+  it("rejects a derived Approver that differs from the expected address", () => {
+    const base = loadEnvironment(requiredEnvironment);
+    expect(() => requireApproverConfig({
+      ...base,
+      authorization: {
+        ...base.authorization,
+        approverPrivateKey: `0x${"89".repeat(32)}`,
+      },
+    })).toThrow(ConfigurationError);
   });
 });

@@ -26,6 +26,15 @@ describe("canonical AurixRewardClaim ABI", () => {
       abi.filter((entry) => entry.type === "function").map((entry) => entry.name),
     );
     for (const functionName of [
+      "APPROVER_ROLE",
+      "REWARD_AUTHORIZATION_TYPEHASH",
+      "getCampaign",
+      "getLastClaimAt",
+      "getNextClaimAt",
+      "getRewardNonce",
+      "hasRole",
+      "isClaimIntervalElapsed",
+      "usedRewardIds",
       "eip712Domain",
       "eip712Name",
       "eip712Version",
@@ -34,5 +43,27 @@ describe("canonical AurixRewardClaim ABI", () => {
     ]) {
       expect(functions.has(functionName)).toBe(true);
     }
+  });
+
+  it("defines the exact deployed RewardAuthorization tuple order", async () => {
+    const bytes = await readFile(
+      new URL("../src/contracts/abi/AurixRewardClaim.json", import.meta.url),
+      "utf8",
+    );
+    const abi = JSON.parse(bytes) as Array<{
+      inputs?: Array<{ components?: Array<{ name: string; type: string }> }>;
+      name?: string;
+      type: string;
+    }>;
+    const claim = abi.find((entry) => entry.type === "function" && entry.name === "claimReward");
+    expect(claim?.inputs?.[0]?.components).toEqual([
+      { internalType: "address", name: "claimant", type: "address" },
+      { internalType: "uint256", name: "amount", type: "uint256" },
+      { internalType: "bytes32", name: "campaignId", type: "bytes32" },
+      { internalType: "bytes32", name: "rewardId", type: "bytes32" },
+      { internalType: "uint256", name: "rewardNonce", type: "uint256" },
+      { internalType: "uint256", name: "validAfter", type: "uint256" },
+      { internalType: "uint256", name: "deadline", type: "uint256" },
+    ]);
   });
 });

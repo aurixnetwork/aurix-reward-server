@@ -25,6 +25,7 @@ describe("structured logger", () => {
       TESTNET_FUNDING_PRIVATE_KEY: "funding-secret",
       WALLET_ENCRYPTION_KEY: "encryption-secret",
       config: {
+        authorization: { approverPrivateKey: "nested-approver-secret" },
         database: { password: "database-secret" },
         rpc: { primaryUrl: "sensitive-rpc-value" },
         walletEncryption: { key: "nested-encryption-secret" },
@@ -44,6 +45,7 @@ describe("structured logger", () => {
     expect(output).not.toContain("sensitive-rpc-value");
     for (const secret of [
       "approver-secret",
+      "nested-approver-secret",
       "funding-secret",
       "encryption-secret",
       "nested-encryption-secret",
