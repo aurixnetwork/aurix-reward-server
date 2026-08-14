@@ -85,3 +85,15 @@ off-chain and does not pay claim gas.
 Do not configure a production validity policy by inference. Select an explicit
 Testnet duration that fits inside the intended campaign's remaining time, then
 review it separately before any production use.
+
+## Phase 4B-1 campaign preflight
+
+`campaign:plan:create:test` requires only the existing BSC Testnet RPC and local
+database identity settings. The database is read solely to confirm exactly 10
+ACTIVE User Wallets. No Admin, Operations, token-owner, Funding, or Approver
+private key is loaded or required, and Phase 4B-1 adds no environment variable.
+
+The public role addresses and deterministic proposal are fixed in source for
+this Testnet preflight. Proposed start/end timestamps are derived from the latest
+block timestamp on each invocation and are not persisted or approved by running
+the command.

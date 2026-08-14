@@ -112,3 +112,8 @@ data independently and performs only contract reads. Every command reports
 
 If there is no valid on-chain Testnet campaign, planning returns
 `BLOCKED_CAMPAIGN_NOT_FOUND`; no campaign is fabricated or created.
+
+Phase 4B-1 proposes the deterministic campaign ID documented in
+[Test Campaign creation preflight](TEST_CAMPAIGN.md), but does not create it or
+create an authorization. Authorization preparation remains blocked until that
+campaign is later confirmed on-chain and active within its time window.

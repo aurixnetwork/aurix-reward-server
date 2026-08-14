@@ -80,6 +80,28 @@ The Approver is an off-chain signer and pays no gas. Phase 4A has no transaction
 broadcaster and sends zero transactions. Phase 5 will use the persisted
 authorization in a User Wallet-signed `claimReward()` transaction.
 
+## Phase 4B-1 Test Campaign preflight
+
+```text
+canonical deployed Solidity + byte-identical ABI
+        |
+chain 97 preflight + ten ACTIVE wallet count
+        |
+public campaign mapping + deployed interval constants + role reads
+        |
+IRB/native balances + current gas price
+        |
+unsigned calldata construction + eth_estimateGas
+        |
+RECOMMENDED_NOT_APPROVED plan with transactionsSent = 0
+```
+
+The campaign plan uses providers and ABI encoders only; it contains no signer,
+database write, execution flag, or broadcast method. The deterministic proposal
+is not a claim of on-chain existence. No server campaign registry is introduced
+before a real creation transaction exists; the public mapping remains the source
+of truth.
+
 ## Modules
 
 - `src/config` fixes the network and addresses and validates environment input.
@@ -96,6 +118,9 @@ authorization in a User Wallet-signed `claimReward()` transaction.
 - `src/authorization` owns the canonical EIP-712 schema, exact IRB/base-unit and
   validity policies, reward IDs, eligibility abstraction, job repository,
   signing, and independent verification.
+- `src/campaign` owns deterministic Test Campaign proposal validation, role and
+  balance sufficiency checks, unsigned transaction ordering, gas estimation,
+  and safe public presentation.
 - `src/cli` owns explicit operational commands and always destroys RPC providers
   or closes database pools.
 

@@ -2,13 +2,16 @@
 
 Public backend repository for the Aurix Network reward authorization and self-claim system.
 
-## Phase 4A status
+## Phase 4B-1 status
 
 Phase 1's BSC Testnet foundation and Phase 2's encrypted ten-wallet store remain
 intact, and Phase 3 funding is complete. Phase 4A adds the read-only campaign
 model, exact EIP-712 RewardAuthorization implementation, explicit TEST
 ELIGIBILITY abstraction, and persisted Approver signatures. It sends no
 transaction; campaign creation, IRB transfer, and reward claims remain absent.
+Phase 4B-1 adds an exact source-derived, read-only Test Campaign creation plan.
+It validates roles, balances, deterministic campaign identity, parameter bounds,
+transaction order, and gas without loading a signer or sending a transaction.
 
 ## Fixed environment
 
@@ -54,6 +57,7 @@ npm run funding:status:test
 # Owner-reviewed operation only; disabled unless FUNDING_EXECUTION_ENABLED=true
 npm run funding:execute:test
 npm run campaign:inspect:test -- --campaign-id <bytes32>
+npm run campaign:plan:create:test
 npm run authorization:plan:test -- --wallet-id 1 --campaign-id <bytes32> --amount <IRB>
 npm run authorization:create:test -- --wallet-id 1 --campaign-id <bytes32> --amount <IRB>
 npm run authorization:verify:test -- --job-id <uuid>
@@ -92,3 +96,4 @@ the claim transaction; that write path remains unimplemented.
 - [Test User Wallet operations](docs/TEST_WALLET_OPERATIONS.md)
 - [tBNB funding operations](docs/TBNB_FUNDING.md)
 - [Reward authorization](docs/REWARD_AUTHORIZATION.md)
+- [Test Campaign preflight](docs/TEST_CAMPAIGN.md)

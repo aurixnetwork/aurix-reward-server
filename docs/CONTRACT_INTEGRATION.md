@@ -39,6 +39,10 @@ not included in its result.
 `getCampaign(bytes32)` returns budget, distributed amount, maximum reward,
 start/end Unix times, claim interval, active state, and existence. The campaign
 inspect command reports a missing campaign cleanly and never creates one.
+The client uses the public `campaigns(bytes32)` getter for non-reverting
+existence inspection because `getCampaign(bytes32)` deliberately reverts with
+`CampaignDoesNotExist` when absent. Campaign enumeration is not implemented by
+the contract.
 
 The canonical EIP-712 type is:
 
@@ -51,3 +55,17 @@ the User Wallet's transaction nonce. The signing path compares the canonical
 type hash to the deployed public constant and checks the recovered signer has
 `APPROVER_ROLE`; these are read-only calls. See
 [Reward authorization](REWARD_AUTHORIZATION.md).
+
+## Campaign writes and token inventory
+
+The exact creation function is
+`createCampaign(bytes32,uint256,uint256,uint64,uint64,uint64,bool)` and is gated
+only by `CAMPAIGN_MANAGER_ROLE`; it is not gated by pause state. Creation stores
+accounting parameters and emits `CampaignCreated`, but transfers no IRB and
+does not verify the contract balance.
+
+There is no deposit function. Standard IRB `transfer` funds the Reward Contract.
+Campaign budgets are independent accounting caps rather than token
+reservations, so claim execution separately enforces actual IRB balance. See
+[Test Campaign creation preflight](TEST_CAMPAIGN.md) for exact constraints,
+treasury behavior, and the non-executed Testnet proposal.

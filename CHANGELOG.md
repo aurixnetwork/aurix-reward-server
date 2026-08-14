@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Added the read-only Phase 4B-1 Test Campaign creation preflight with exact
+  Solidity/ABI constraints, deterministic campaign ID, role and balance checks,
+  transaction ordering, gas estimates, and zero-transaction output.
+- Added non-reverting public-mapping campaign existence reads, deployed claim
+  interval reads, IRB owner inspection, and deterministic campaign planning
+  coverage without adding a signer or campaign registry.
 - Added the Phase 4A Reward Authorization engine with the exact deployed
   EIP-712 domain/type, live campaign and claimant nonce reads, Approver signing,
   signer/role verification, and zero-transaction plan/create/verify commands.
