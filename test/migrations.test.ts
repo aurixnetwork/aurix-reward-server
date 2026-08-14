@@ -65,4 +65,20 @@ describe("migration discovery", () => {
     expect(migration).not.toMatch(/\bprivate_key\b/);
     expect(migration).not.toMatch(/\bmnemonic\b/);
   });
+
+  it("defines the funding lifecycle schema with exact numeric storage", async () => {
+    const migration = await readFile(
+      new URL(
+        "../database/migrations/0002_create_reward_wallet_funding_jobs.sql",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+    expect(migration).toContain("CREATE TABLE reward_wallet_funding_jobs");
+    expect(migration).toContain("VARCHAR(78)");
+    expect(migration).toContain("uq_reward_wallet_funding_jobs_job_id");
+    expect(migration).toContain("uq_reward_wallet_funding_jobs_active_wallet");
+    expect(migration).not.toContain("raw_transaction");
+    expect(migration).not.toContain("private_key");
+  });
 });

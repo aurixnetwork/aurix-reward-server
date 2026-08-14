@@ -34,7 +34,9 @@ describe("structured logger", () => {
       mnemonic: "mnemonic-secret",
       privateKey: "wallet-secret",
       private_key: "snake-wallet-secret",
+      rawTransaction: "raw-transaction-secret",
       seed: "seed-secret",
+      signedTransaction: "signed-transaction-secret",
     });
 
     expect(output).not.toContain("database-secret");
@@ -50,6 +52,8 @@ describe("structured logger", () => {
       "mnemonic-secret",
       "snake-wallet-secret",
       "seed-secret",
+      "raw-transaction-secret",
+      "signed-transaction-secret",
     ]) {
       expect(output).not.toContain(secret);
     }
