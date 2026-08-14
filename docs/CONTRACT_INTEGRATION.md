@@ -17,9 +17,11 @@ explicitly reviewed canonical contract release; never hand-edit the copied ABI.
 ## Read surface
 
 The Reward Contract client reads `rewardToken()`, `paused()`, `eip712Domain()`,
-`eip712Name()`, and `eip712Version()`. The canonical ABI contains mutation
-entries, but the wrapper holds a provider only, exposes no generic Contract, and
-implements no write method.
+`eip712Name()`, and `eip712Version()`. Phase 4A also uses the ABI's exact
+`getCampaign`, `getRewardNonce`, `getLastClaimAt`, `getNextClaimAt`,
+`isClaimIntervalElapsed`, `usedRewardIds`, `REWARD_AUTHORIZATION_TYPEHASH`,
+`APPROVER_ROLE`, and `hasRole` methods. The wrapper holds a provider only,
+exposes no generic Contract, and implements no write method.
 
 The IRB client uses a minimal ERC-20 read ABI for `name`, `symbol`, `decimals`,
 `totalSupply`, and `balanceOf`.
@@ -31,3 +33,21 @@ bytecode, `rewardToken()` equals the fixed IRB address, token metadata is
 IRISBANK/IRB/18, the pause state is readable, and the EIP-712 domain is
 AurixRewardClaim/version 1/chain 97/the fixed verifying contract. RPC URLs are
 not included in its result.
+
+## Campaign and authorization model
+
+`getCampaign(bytes32)` returns budget, distributed amount, maximum reward,
+start/end Unix times, claim interval, active state, and existence. The campaign
+inspect command reports a missing campaign cleanly and never creates one.
+
+The canonical EIP-712 type is:
+
+```text
+RewardAuthorization(address claimant,uint256 amount,bytes32 campaignId,bytes32 rewardId,uint256 rewardNonce,uint256 validAfter,uint256 deadline)
+```
+
+`rewardNonce` is read for the claimant and campaign from the contract. It is not
+the User Wallet's transaction nonce. The signing path compares the canonical
+type hash to the deployed public constant and checks the recovered signer has
+`APPROVER_ROLE`; these are read-only calls. See
+[Reward authorization](REWARD_AUTHORIZATION.md).

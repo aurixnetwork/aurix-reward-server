@@ -67,3 +67,21 @@ The Funding Wallet must not match an ACTIVE test User Wallet. Keep it separate
 from Approver, Admin/Deployer, and Operations roles. No Approver private key is
 loaded or used in Phase 3. The optional minimum-top-up setting is deliberately
 omitted in v1; the exact missing-to-target amount is used without alteration.
+
+## Phase 4A reward authorization
+
+| Variable | Required | Rule |
+| --- | --- | --- |
+| `APPROVER_PRIVATE_KEY` | authorization creation | Valid EVM private key; environment-only and never persisted or logged |
+| `APPROVER_ADDRESS` | no | Optional assertion; when present it must be the fixed Testnet Approver and match the address derived from the key |
+| `AUTHORIZATION_VALIDITY_SECONDS` | plan/creation | Explicit positive safe integer in Unix seconds; no default |
+
+The fixed expected Approver is
+`0x425f7117D36aC8F45224E895e583b404E0a6eb05`. Creation refuses to sign unless
+the derived address matches and the address currently holds `APPROVER_ROLE` on
+AurixRewardClaim. The key is never written to the database. The Approver signs
+off-chain and does not pay claim gas.
+
+Do not configure a production validity policy by inference. Select an explicit
+Testnet duration that fits inside the intended campaign's remaining time, then
+review it separately before any production use.

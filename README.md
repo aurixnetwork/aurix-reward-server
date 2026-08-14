@@ -2,13 +2,13 @@
 
 Public backend repository for the Aurix Network reward authorization and self-claim system.
 
-## Phase 3 status
+## Phase 4A status
 
 Phase 1's BSC Testnet foundation and Phase 2's encrypted ten-wallet store remain
-intact. Phase 3 adds a dedicated Funding Wallet, exact target-balance planning,
-an idempotent funding-job lifecycle, sequential local transaction signing,
-restart reconciliation, and guarded execution. The implementation and default
-configuration send no transaction; no IRB transfer or reward claim is included.
+intact, and Phase 3 funding is complete. Phase 4A adds the read-only campaign
+model, exact EIP-712 RewardAuthorization implementation, explicit TEST
+ELIGIBILITY abstraction, and persisted Approver signatures. It sends no
+transaction; campaign creation, IRB transfer, and reward claims remain absent.
 
 ## Fixed environment
 
@@ -53,6 +53,10 @@ npm run funding:plan:test
 npm run funding:status:test
 # Owner-reviewed operation only; disabled unless FUNDING_EXECUTION_ENABLED=true
 npm run funding:execute:test
+npm run campaign:inspect:test -- --campaign-id <bytes32>
+npm run authorization:plan:test -- --wallet-id 1 --campaign-id <bytes32> --amount <IRB>
+npm run authorization:create:test -- --wallet-id 1 --campaign-id <bytes32> --amount <IRB>
+npm run authorization:verify:test -- --job-id <uuid>
 ```
 
 The health check validates RPC reachability and chain identity. The preflight
@@ -72,8 +76,9 @@ The server verifies off-chain eligibility, creates an EIP-712 Approver authoriza
 The User Wallet is the transaction sender, gas payer, and reward recipient.
 
 The Phase 3 Funding Wallet may send only native tBNB to test User Wallets through
-the explicitly guarded execution command. The later reward write path remains
-unimplemented.
+the explicitly guarded execution command. In Phase 4A the Approver signs only
+off-chain typed data and pays no gas. A later phase will let the User Wallet send
+the claim transaction; that write path remains unimplemented.
 
 ## Documentation
 
@@ -86,3 +91,4 @@ unimplemented.
 - [Test User Wallet security](docs/WALLET_SECURITY.md)
 - [Test User Wallet operations](docs/TEST_WALLET_OPERATIONS.md)
 - [tBNB funding operations](docs/TBNB_FUNDING.md)
+- [Reward authorization](docs/REWARD_AUTHORIZATION.md)

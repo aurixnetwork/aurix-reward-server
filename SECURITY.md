@@ -13,7 +13,7 @@ Never publish:
 
 Security findings should be reported privately before public disclosure.
 
-## Phase 1 through Phase 3 controls
+## Phase 1 through Phase 4A controls
 
 - Phase 1 loads no wallet, funding, or Approver private keys.
 - Blockchain clients are constructed with providers only; no signer is present.
@@ -39,6 +39,15 @@ Security findings should be reported privately before public disclosure.
   before broadcast, and timeouts remain unresolved for reconciliation.
 - Funding logs redact Funding keys, raw/signed transactions, wallet ciphertext,
   private keys, mnemonics, and database/RPC credentials.
+- The Approver key remains in the ignored environment only. The public address
+  is derived from it and must match the fixed expected Testnet assertion before
+  signing; the current on-chain `APPROVER_ROLE` is checked read-only.
+- Phase 4A persists only authorization fields, typed-data hashes, and public
+  signatures. It has no transaction broadcaster and sends no blockchain
+  transaction.
+- The canonical EIP-712 type and deployed type hash, recovered signer, unique
+  reward ID, and campaign/claimant/contract-nonce tuple are verified before an
+  authorization is ready.
 
 Back up `WALLET_ENCRYPTION_KEY` and its version in an approved secret manager.
 If this key is lost, encrypted User Wallet private keys may be permanently

@@ -60,6 +60,26 @@ Reward Contract. Read selection uses the existing primary/secondary pool. A
 broadcast retry uses only the exact same signed bytes, retaining one hash and
 nonce identity.
 
+## Phase 4A authorization path
+
+```text
+validated chain 97 + ACTIVE public wallet + explicit TEST ELIGIBILITY
+        |
+live campaign, interval, budget, pause, and contract rewardNonce reads
+        |
+exact bigint amount + Unix-second validity + unique rewardId
+        |
+persist PLANNED authorization
+        |
+canonical EIP-712 hash + Approver signature + recovered signer/role check
+        |
+persist hash/signature -> READY
+```
+
+The Approver is an off-chain signer and pays no gas. Phase 4A has no transaction
+broadcaster and sends zero transactions. Phase 5 will use the persisted
+authorization in a User Wallet-signed `claimReward()` transaction.
+
 ## Modules
 
 - `src/config` fixes the network and addresses and validates environment input.
@@ -73,13 +93,16 @@ nonce identity.
   public projections, batch coordination, and validation.
 - `src/funding` owns exact Wei planning, role collision checks, funding jobs,
   sequential execution, broadcast identity, and restart reconciliation.
+- `src/authorization` owns the canonical EIP-712 schema, exact IRB/base-unit and
+  validity policies, reward IDs, eligibility abstraction, job repository,
+  signing, and independent verification.
 - `src/cli` owns explicit operational commands and always destroys RPC providers
   or closes database pools.
 
-## Future transaction model
+## Claim transaction model
 
-Later phases will read DB eligibility and on-chain campaign state, read the
-claimant's contract `rewardNonce`, create and Approver-sign an EIP-712
-authorization, and have the User Wallet sign and send `claimReward`. The User
-Wallet—not the server or Approver—is the sender, gas payer, and recipient. Those
-capabilities remain deliberately absent from Phase 1.
+Phase 4A reads on-chain campaign state and the claimant's contract
+`rewardNonce`, then creates and Approver-signs an EIP-712 authorization. A later
+phase will have the User Wallet sign and send `claimReward`. The User Wallet—not
+the Approver—is the sender, gas payer, and recipient. The claim broadcaster is
+deliberately absent from Phase 4A.

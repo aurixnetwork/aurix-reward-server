@@ -58,3 +58,24 @@ historical terminal jobs. Raw signed transaction bytes and private keys have no
 column.
 
 Database passwords remain environment-only and are redacted from logs.
+
+## Phase 4A authorization schema
+
+Migration `0003_create_reward_authorization_jobs.sql` adds the off-chain
+authorization ledger. It stores unique UUID job identity, User Wallet identity,
+claimant, campaign and reward IDs, exact contract reward nonce and IRB base-unit
+amount, validity timestamps, public Approver address, typed-data hash, public
+signature, explicit lifecycle status/error fields, and timestamps.
+
+Potential uint256 values use 78-character ASCII decimal strings and are mapped
+to application `bigint`; no floating-point column is used. Unix timestamps use
+unsigned `BIGINT`. Unique keys enforce `job_id`, `reward_id`, and
+`campaign_id + claimant_address + reward_nonce`. Indexes support wallet,
+campaign, and status inspection. The User Wallet foreign key preserves wallet
+identity.
+
+The lifecycle is `PLANNED` followed by `READY` after hash/signature validation,
+or `FAILED` on signing/Approver verification failure. `SIGNED`, `EXPIRED`,
+`CANCELLED`, and `CONSUMED` are explicit lifecycle states reserved for recovery
+and later claim processing. No private key, mnemonic, encryption key, or raw
+transaction is stored.

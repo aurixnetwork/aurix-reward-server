@@ -10,5 +10,8 @@ pool's `multipleStatements` option disabled.
 Phase 2 adds `0001_create_reward_user_wallets.sql`. Phase 3 adds
 `0002_create_reward_wallet_funding_jobs.sql`, including exact decimal-string Wei storage and a
 unique unresolved-job guard. Neither schema stores plaintext private keys,
-mnemonics, or raw signed transactions. Reward and claim tables remain deferred
-to their owning phases.
+mnemonics, or raw signed transactions. Phase 4A adds
+`0003_create_reward_authorization_jobs.sql`, including exact uint256 decimal
+strings and unique job, reward ID, and campaign/claimant/contract-nonce guards.
+It stores the public Approver signature and typed-data hash, never the Approver
+key. Claim tables remain deferred to their owning phase.
