@@ -10,9 +10,9 @@ export interface ReadOnlyRpcProvider {
   getNetwork: () => Promise<{ chainId: bigint }>;
 }
 
-export interface RpcEndpoint {
+export interface RpcEndpoint<ProviderType extends ReadOnlyRpcProvider = ReadOnlyRpcProvider> {
   readonly label: RpcEndpointLabel;
-  readonly provider: ReadOnlyRpcProvider;
+  readonly provider: ProviderType;
 }
 
 export interface RpcProbeResult {
@@ -23,8 +23,9 @@ export interface RpcProbeResult {
   readonly reason?: "request_failed" | "unexpected_chain_id";
 }
 
-export interface ConnectedRpc {
-  readonly endpoint: RpcEndpoint;
+export interface ConnectedRpc<ProviderType extends ReadOnlyRpcProvider = ReadOnlyRpcProvider> {
+  readonly endpoint: RpcEndpoint<ProviderType>;
+  readonly healthyEndpoints: readonly RpcEndpoint<ProviderType>[];
   readonly probes: readonly RpcProbeResult[];
 }
 
@@ -35,13 +36,13 @@ export class RpcUnavailableError extends Error {
   }
 }
 
-export class RpcProviderPool {
+export class RpcProviderPool<ProviderType extends ReadOnlyRpcProvider = ReadOnlyRpcProvider> {
   public constructor(
-    private readonly endpoints: readonly RpcEndpoint[],
+    private readonly endpoints: readonly RpcEndpoint<ProviderType>[],
     private readonly expectedChainId: number,
   ) {}
 
-  public async connect(): Promise<ConnectedRpc> {
+  public async connect(): Promise<ConnectedRpc<ProviderType>> {
     const probes = await probeRpcEndpoints(this.endpoints, this.expectedChainId);
     const endpoint = this.endpoints.find((candidate) =>
       probes.some((probe) => probe.label === candidate.label && probe.healthy),
@@ -51,7 +52,16 @@ export class RpcProviderPool {
       throw new RpcUnavailableError();
     }
 
-    return { endpoint, probes };
+    const healthyLabels = new Set(
+      probes.filter((probe) => probe.healthy).map((probe) => probe.label),
+    );
+    return {
+      endpoint,
+      healthyEndpoints: this.endpoints.filter((candidate) =>
+        healthyLabels.has(candidate.label),
+      ),
+      probes,
+    };
   }
 
   public destroy(): void {
@@ -61,8 +71,8 @@ export class RpcProviderPool {
   }
 }
 
-export function createRpcProviderPool(config: AppConfig): RpcProviderPool {
-  const endpoints: RpcEndpoint[] = [
+export function createRpcProviderPool(config: AppConfig): RpcProviderPool<JsonRpcProvider> {
+  const endpoints: RpcEndpoint<JsonRpcProvider>[] = [
     {
       label: "primary",
       provider: createJsonRpcProvider(config.rpc.primaryUrl, config.rpc.timeoutMs),

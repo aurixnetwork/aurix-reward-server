@@ -1,7 +1,5 @@
 import "dotenv/config";
 
-import type { JsonRpcProvider } from "ethers";
-
 import { createRpcProviderPool } from "../blockchain/rpc-provider.js";
 import { loadEnvironment } from "../config/environment.js";
 import { RewardContractClient } from "../contracts/reward-contract-client.js";
@@ -12,7 +10,7 @@ await runCommand("inspect:reward:testnet", async () => {
   const pool = createRpcProviderPool(config);
   try {
     const connected = await pool.connect();
-    const provider = connected.endpoint.provider as JsonRpcProvider;
+    const provider = connected.endpoint.provider;
     const client = new RewardContractClient(
       provider,
       config.contracts.rewardContractAddress,

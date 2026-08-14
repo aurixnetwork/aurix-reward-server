@@ -1,7 +1,5 @@
 import "dotenv/config";
 
-import type { JsonRpcProvider } from "ethers";
-
 import {
   collectTestnetSnapshot,
   createPreflightReport,
@@ -16,7 +14,7 @@ await runCommand("preflight:testnet", async () => {
   try {
     const connected = await pool.connect();
     const snapshot = await collectTestnetSnapshot(
-      connected.endpoint.provider as JsonRpcProvider,
+      connected.endpoint.provider,
       config,
     );
     return createPreflightReport(

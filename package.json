@@ -10,6 +10,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "lint": "eslint .",
+    "lint:secrets": "secretlint \"**/*\"",
     "test": "vitest run",
     "preflight:testnet": "tsx src/cli/preflight.ts",
     "health:testnet": "tsx src/cli/health.ts",
@@ -18,7 +19,10 @@
     "db:migrate": "tsx src/cli/migrate-database.ts",
     "wallets:create:test": "tsx src/cli/create-test-wallets.ts",
     "wallets:list:test": "tsx src/cli/list-test-wallets.ts",
-    "wallets:validate:test": "tsx src/cli/validate-test-wallets.ts"
+    "wallets:validate:test": "tsx src/cli/validate-test-wallets.ts",
+    "funding:plan:test": "tsx src/cli/plan-funding.ts",
+    "funding:execute:test": "tsx src/cli/execute-funding.ts",
+    "funding:status:test": "tsx src/cli/funding-status.ts"
   },
   "dependencies": {
     "dotenv": "17.4.2",
@@ -29,8 +33,10 @@
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
+    "@secretlint/secretlint-rule-preset-recommend": "13.0.4",
     "@types/node": "22.20.1",
     "eslint": "10.8.1",
+    "secretlint": "13.0.4",
     "tsx": "4.23.12",
     "typescript": "5.9.3",
     "typescript-eslint": "8.67.0",

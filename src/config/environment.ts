@@ -1,4 +1,4 @@
-import { getAddress } from "ethers";
+import { getAddress, parseEther, parseUnits, Wallet } from "ethers";
 import { z } from "zod";
 
 import {
@@ -22,6 +22,39 @@ const optionalUrl = z.preprocess(
   (value) => (value === "" ? undefined : value),
   httpUrl.optional(),
 );
+
+const optionalBoolean = z.preprocess(
+  (value) => (value === "" || value === undefined ? undefined : value),
+  z.enum(["true", "false"]).transform((value) => value === "true").optional(),
+);
+
+const DECIMAL_AMOUNT_PATTERN = /^(?:0|[1-9]\d*)(?:\.\d{1,18})?$/;
+
+export function parsePositiveEtherAmount(value: string, field: string): bigint {
+  if (!DECIMAL_AMOUNT_PATTERN.test(value)) {
+    throw new ConfigurationError([
+      `${field}: must be a positive decimal with at most 18 fractional digits`,
+    ]);
+  }
+  const amount = parseEther(value);
+  if (amount <= 0n) {
+    throw new ConfigurationError([`${field}: must be greater than zero`]);
+  }
+  return amount;
+}
+
+function parsePositiveGweiAmount(value: string, field: string): bigint {
+  if (!DECIMAL_AMOUNT_PATTERN.test(value)) {
+    throw new ConfigurationError([
+      `${field}: must be a positive decimal with at most 18 fractional digits`,
+    ]);
+  }
+  const amount = parseUnits(value, "gwei");
+  if (amount <= 0n) {
+    throw new ConfigurationError([`${field}: must be greater than zero`]);
+  }
+  return amount;
+}
 
 const BASE64_PATTERN = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
 
@@ -65,6 +98,11 @@ const environmentSchema = z
       .int()
       .min(1)
       .default(DEFAULT_WALLET_ENCRYPTION_KEY_VERSION),
+    TESTNET_FUNDING_PRIVATE_KEY: optionalNonEmptyString,
+    TESTNET_FUNDING_ADDRESS: optionalNonEmptyString,
+    TEST_WALLET_TARGET_TBNB: optionalNonEmptyString,
+    MAX_FUNDING_GAS_PRICE_GWEI: optionalNonEmptyString,
+    FUNDING_EXECUTION_ENABLED: optionalBoolean.default(false),
   })
   .superRefine((value, context) => {
     if (value.BSC_TESTNET_CHAIN_ID !== BSC_TESTNET_CHAIN_ID) {
@@ -105,6 +143,49 @@ const environmentSchema = z
         message: "must be canonical Base64 encoding of exactly 32 bytes",
         path: ["WALLET_ENCRYPTION_KEY"],
       });
+    }
+    if (value.TESTNET_FUNDING_PRIVATE_KEY) {
+      try {
+        void new Wallet(value.TESTNET_FUNDING_PRIVATE_KEY);
+      } catch {
+        context.addIssue({
+          code: "custom",
+          message: "must be a valid 32-byte EVM private key",
+          path: ["TESTNET_FUNDING_PRIVATE_KEY"],
+        });
+      }
+    }
+    if (value.TESTNET_FUNDING_ADDRESS) {
+      try {
+        getAddress(value.TESTNET_FUNDING_ADDRESS);
+      } catch {
+        context.addIssue({
+          code: "custom",
+          message: "must be a valid EVM address",
+          path: ["TESTNET_FUNDING_ADDRESS"],
+        });
+      }
+    }
+    for (const [field, amount] of [
+      ["TEST_WALLET_TARGET_TBNB", value.TEST_WALLET_TARGET_TBNB],
+      ["MAX_FUNDING_GAS_PRICE_GWEI", value.MAX_FUNDING_GAS_PRICE_GWEI],
+    ] as const) {
+      if (amount) {
+        try {
+          if (field === "TEST_WALLET_TARGET_TBNB") {
+            parsePositiveEtherAmount(amount, field);
+          } else {
+            parsePositiveGweiAmount(amount, field);
+          }
+        } catch (error: unknown) {
+          const issue = error instanceof ConfigurationError ? error.issues[0] : undefined;
+          context.addIssue({
+            code: "custom",
+            message: issue?.split(": ").slice(1).join(": ") ?? "is invalid",
+            path: [field],
+          });
+        }
+      }
     }
   });
 
@@ -155,6 +236,23 @@ export interface AppConfig {
     readonly timeoutMs: number;
   };
   readonly walletEncryption: WalletEncryptionConfig | undefined;
+  readonly funding: FundingEnvironmentConfig;
+}
+
+export interface FundingEnvironmentConfig {
+  readonly executionEnabled: boolean;
+  readonly expectedAddress: string | undefined;
+  readonly maxGasPriceWei: bigint | undefined;
+  readonly privateKey: string | undefined;
+  readonly targetBalanceWei: bigint | undefined;
+}
+
+export interface FundingConfig {
+  readonly address: string;
+  readonly executionEnabled: boolean;
+  readonly maxGasPriceWei: bigint | undefined;
+  readonly privateKey: string;
+  readonly targetBalanceWei: bigint;
 }
 
 export interface WalletEncryptionConfig {
@@ -215,6 +313,25 @@ export function loadEnvironment(source: NodeJS.ProcessEnv = process.env): AppCon
     walletEncryption: encryptionKey
       ? { key: encryptionKey, version: value.WALLET_ENCRYPTION_KEY_VERSION }
       : undefined,
+    funding: {
+      executionEnabled: value.FUNDING_EXECUTION_ENABLED,
+      expectedAddress: value.TESTNET_FUNDING_ADDRESS
+        ? getAddress(value.TESTNET_FUNDING_ADDRESS)
+        : undefined,
+      maxGasPriceWei: value.MAX_FUNDING_GAS_PRICE_GWEI
+        ? parsePositiveGweiAmount(
+            value.MAX_FUNDING_GAS_PRICE_GWEI,
+            "MAX_FUNDING_GAS_PRICE_GWEI",
+          )
+        : undefined,
+      privateKey: value.TESTNET_FUNDING_PRIVATE_KEY,
+      targetBalanceWei: value.TEST_WALLET_TARGET_TBNB
+        ? parsePositiveEtherAmount(
+            value.TEST_WALLET_TARGET_TBNB,
+            "TEST_WALLET_TARGET_TBNB",
+          )
+        : undefined,
+    },
   };
 }
 
@@ -227,4 +344,36 @@ export function requireWalletEncryptionConfig(
     ]);
   }
   return config.walletEncryption;
+}
+
+export function requireFundingConfig(config: AppConfig): FundingConfig {
+  const issues: string[] = [];
+  if (!config.funding.privateKey) {
+    issues.push("TESTNET_FUNDING_PRIVATE_KEY: required for funding commands");
+  }
+  if (config.funding.targetBalanceWei === undefined) {
+    issues.push("TEST_WALLET_TARGET_TBNB: explicit positive target is required");
+  }
+  if (issues.length > 0) {
+    throw new ConfigurationError(issues);
+  }
+
+  const privateKey = config.funding.privateKey as string;
+  const address = new Wallet(privateKey).address;
+  if (
+    config.funding.expectedAddress &&
+    address !== config.funding.expectedAddress
+  ) {
+    throw new ConfigurationError([
+      "TESTNET_FUNDING_ADDRESS: does not match the address derived from TESTNET_FUNDING_PRIVATE_KEY",
+    ]);
+  }
+
+  return {
+    address,
+    executionEnabled: config.funding.executionEnabled,
+    maxGasPriceWei: config.funding.maxGasPriceWei,
+    privateKey,
+    targetBalanceWei: config.funding.targetBalanceWei as bigint,
+  };
 }

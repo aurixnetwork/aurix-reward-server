@@ -1,7 +1,5 @@
 import "dotenv/config";
 
-import type { JsonRpcProvider } from "ethers";
-
 import { createRpcProviderPool } from "../blockchain/rpc-provider.js";
 import { loadEnvironment } from "../config/environment.js";
 import { IrbTokenClient } from "../contracts/irb-token-client.js";
@@ -12,7 +10,7 @@ await runCommand("inspect:irb:testnet", async () => {
   const pool = createRpcProviderPool(config);
   try {
     const connected = await pool.connect();
-    const provider = connected.endpoint.provider as JsonRpcProvider;
+    const provider = connected.endpoint.provider;
     const client = new IrbTokenClient(provider, config.contracts.irbTokenAddress);
     const [code, inspection] = await Promise.all([
       provider.getCode(config.contracts.irbTokenAddress),
