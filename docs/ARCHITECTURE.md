@@ -39,6 +39,27 @@ Phase 2's Wallet object exists only in controlled generation/decryption scope.
 No provider or signer is attached and no blockchain transaction is possible
 through the wallet commands.
 
+## Phase 3 funding path
+
+```text
+validated chain 97 + dedicated Funding Wallet + ten ACTIVE public wallets
+        |
+on-chain balances + unresolved-job check + observed gas estimates
+        |
+read-only exact top-up plan and whole-batch sufficiency check
+        |
+explicit execution guard + pending nonce + sequential worker
+        |
+local sign -> persist SIGNED hash -> broadcast identical bytes
+        |
+receipt and balance verification -> terminal state or PENDING_REVIEW
+```
+
+The Funding Wallet sends only native tBNB. It never sends IRB and never calls the
+Reward Contract. Read selection uses the existing primary/secondary pool. A
+broadcast retry uses only the exact same signed bytes, retaining one hash and
+nonce identity.
+
 ## Modules
 
 - `src/config` fixes the network and addresses and validates environment input.
@@ -50,6 +71,8 @@ through the wallet commands.
 - `src/database` provides a lazy mysql2 pool and checksum-pinned migration runner.
 - `src/wallets` owns generation, authenticated encryption, database persistence,
   public projections, batch coordination, and validation.
+- `src/funding` owns exact Wei planning, role collision checks, funding jobs,
+  sequential execution, broadcast identity, and restart reconciliation.
 - `src/cli` owns explicit operational commands and always destroys RPC providers
   or closes database pools.
 

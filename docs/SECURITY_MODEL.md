@@ -1,6 +1,6 @@
 # Security model
 
-## Phase 1 and Phase 2 guarantees
+## Phase 1 through Phase 3 guarantees
 
 - Only BSC Testnet chain ID 97 is accepted.
 - Only the fixed Reward Contract and IRB addresses are accepted.
@@ -9,8 +9,9 @@
 - Test User Wallet private keys exist only in controlled generation or
   decryption scope and are stored only as authenticated ciphertext.
 - No mnemonic is stored or returned by the generator module.
-- No command creates campaigns, funds wallets, claims rewards, or sends a
-  transaction.
+- No command creates campaigns, sends IRB, or claims rewards. The funding plan
+  is read-only. Native tBNB execution exists only behind an explicit false-by-
+  default owner-review guard.
 - Reports expose endpoint labels rather than RPC URLs.
 - Structured logging redacts private-key-, mnemonic-, seed-, wallet-ciphertext-,
   encryption-key-, password-, authorization-, and RPC URL-shaped fields.
@@ -25,8 +26,15 @@ transaction nonce is not a reward nonce.
 
 Approver, Funding, and User Wallet key material must remain logically separated.
 User Wallet keys must be encrypted at rest, and only the User Wallet may sign the
-final claim transaction. These are future-phase requirements, not dormant Phase
-1 code paths.
+final claim transaction. The claim-signing path remains a future phase; Phase 3
+loads only the separate Funding Wallet signer in its guarded execution command.
+
+The Funding Wallet address is derived from its configured secret; an optional
+public assertion cannot replace that source of truth. Funding commands reject a
+collision with an ACTIVE test User Wallet. The Funding secret is never
+persisted, raw signed bytes remain in memory, and the signed hash reaches the
+database before broadcast. An RPC timeout is an uncertainty state, never proof
+of failure and never permission to create a different transaction.
 
 ## Operational handling
 

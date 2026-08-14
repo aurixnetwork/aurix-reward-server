@@ -13,7 +13,7 @@ Never publish:
 
 Security findings should be reported privately before public disclosure.
 
-## Phase 1 and Phase 2 controls
+## Phase 1 through Phase 3 controls
 
 - Phase 1 loads no wallet, funding, or Approver private keys.
 - Blockchain clients are constructed with providers only; no signer is present.
@@ -30,6 +30,15 @@ Security findings should be reported privately before public disclosure.
   the expected EVM address.
 - Admin/Deployer, Approver, Operations, Funding, and test User Wallet roles must
   remain separate.
+- The Funding Wallet address is derived from its private key and an optional
+  expected address must match. Execution rejects a collision with an ACTIVE
+  test User Wallet.
+- Funding execution is disabled unless `FUNDING_EXECUTION_ENABLED=true`; the
+  plan command is read-only and reports zero transactions.
+- Raw signed transactions are kept only in memory. The signed hash is persisted
+  before broadcast, and timeouts remain unresolved for reconciliation.
+- Funding logs redact Funding keys, raw/signed transactions, wallet ciphertext,
+  private keys, mnemonics, and database/RPC credentials.
 
 Back up `WALLET_ENCRYPTION_KEY` and its version in an approved secret manager.
 If this key is lost, encrypted User Wallet private keys may be permanently

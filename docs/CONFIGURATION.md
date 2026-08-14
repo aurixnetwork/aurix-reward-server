@@ -53,5 +53,17 @@ backup. If the key is lost, encrypted wallet keys may be unrecoverable. The
 generation command is never run automatically and never overwrites an existing
 file.
 
-Approver and Funding private keys are not Phase 2 settings. They must remain
-separate when introduced in later phases.
+## Phase 3 Testnet funding
+
+| Variable | Required | Rule |
+| --- | --- | --- |
+| `TESTNET_FUNDING_PRIVATE_KEY` | funding plan/execution | Dedicated valid EVM private key; never logged |
+| `TESTNET_FUNDING_ADDRESS` | no | Optional expected-address assertion; must match the derived address |
+| `TEST_WALLET_TARGET_TBNB` | funding plan/execution | Explicit positive decimal tBNB amount, at most 18 decimal places; no default |
+| `MAX_FUNDING_GAS_PRICE_GWEI` | no | Positive maximum for observed RPC gas price |
+| `FUNDING_EXECUTION_ENABLED` | execution | Must equal `true`; tracked default is `false` |
+
+The Funding Wallet must not match an ACTIVE test User Wallet. Keep it separate
+from Approver, Admin/Deployer, and Operations roles. No Approver private key is
+loaded or used in Phase 3. The optional minimum-top-up setting is deliberately
+omitted in v1; the exact missing-to-target amount is used without alteration.

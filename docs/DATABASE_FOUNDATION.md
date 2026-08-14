@@ -38,6 +38,23 @@ default, with ASCII binary collations for encoded values and addresses.
 
 Wallet batch creation uses one transaction. A duplicate address is rejected by
 the database unique key and translated to a safe repository error. Future
-reward, funding, and claim schemas remain deferred to their owning phases.
+reward and claim schemas remain deferred to their owning phases.
+
+## Phase 3 funding schema
+
+Migration `0002_create_reward_wallet_funding_jobs.sql` adds the operational
+funding ledger. It stores deterministic unique job IDs, wallet identity, chain
+97, before/target/amount Wei values, Funding Wallet public address, nonce,
+signed and broadcast hashes, gas limit, receipt/gas/fee/balance confirmation
+data, explicit status/reason/error fields, and lifecycle timestamps.
+
+All potentially uint256-sized values use 78-character ASCII decimal strings and
+application bigint conversion. This avoids MariaDB's 65-digit `DECIMAL` limit;
+no floating-point type stores Wei. Indexes cover job ID, wallet ID,
+wallet address, status, and broadcast hash. A generated nullable
+`active_wallet_id` plus a unique key prevents more than one `SIGNED`,
+`BROADCAST`, or `PENDING_REVIEW` job for a wallet while allowing any number of
+historical terminal jobs. Raw signed transaction bytes and private keys have no
+column.
 
 Database passwords remain environment-only and are redacted from logs.

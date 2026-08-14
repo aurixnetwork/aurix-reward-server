@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Added the Phase 3 BSC Testnet tBNB Funding Wallet configuration, read-only
+  ten-wallet plan, guarded sequential execution, and safe status commands.
+- Added exact target-balance top-ups, observed gas pricing with optional maximum,
+  whole-batch balance preflight, signed-hash-before-broadcast persistence, and
+  same-transaction RPC failover/reconciliation.
+- Added the `reward_wallet_funding_jobs` lifecycle migration and deterministic
+  coverage for funding arithmetic, idempotency, nonce, receipt, timeout,
+  execution-guard, redaction, and output safety behavior.
+- Added Secretlint's recommended rules to local validation and GitHub CI.
+
 - Added the Phase 2 encrypted BSC Testnet User Wallet system using AES-256-GCM
   with address/version-bound authenticated data.
 - Added the `reward_user_wallets` migration, atomic wallet creation, public-only

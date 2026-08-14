@@ -2,13 +2,13 @@
 
 Public backend repository for the Aurix Network reward authorization and self-claim system.
 
-## Phase 2 status
+## Phase 3 status
 
-Phase 1's strictly read-only BSC Testnet foundation remains intact. Phase 2 adds
-server-managed test User Wallet generation, AES-256-GCM encrypted storage,
-public-only listing, and authenticated wallet validation for MariaDB/MySQL.
-Phase 2 creates no campaign, sends no tBNB, executes no claim, and broadcasts no
-blockchain transaction.
+Phase 1's BSC Testnet foundation and Phase 2's encrypted ten-wallet store remain
+intact. Phase 3 adds a dedicated Funding Wallet, exact target-balance planning,
+an idempotent funding-job lifecycle, sequential local transaction signing,
+restart reconciliation, and guarded execution. The implementation and default
+configuration send no transaction; no IRB transfer or reward claim is included.
 
 ## Fixed environment
 
@@ -39,6 +39,7 @@ and a backed-up `WALLET_ENCRYPTION_KEY`; see
 ```bash
 npm run build
 npm run lint
+npm run lint:secrets
 npm test
 npm run health:testnet
 npm run preflight:testnet
@@ -48,6 +49,10 @@ npm run db:migrate
 npm run wallets:create:test -- --count 10
 npm run wallets:list:test
 npm run wallets:validate:test
+npm run funding:plan:test
+npm run funding:status:test
+# Owner-reviewed operation only; disabled unless FUNDING_EXECUTION_ENABLED=true
+npm run funding:execute:test
 ```
 
 The health check validates RPC reachability and chain identity. The preflight
@@ -66,8 +71,9 @@ The server verifies off-chain eligibility, creates an EIP-712 Approver authoriza
 
 The User Wallet is the transaction sender, gas payer, and reward recipient.
 
-That blockchain write path belongs to later phases and is not implemented in
-Phase 2.
+The Phase 3 Funding Wallet may send only native tBNB to test User Wallets through
+the explicitly guarded execution command. The later reward write path remains
+unimplemented.
 
 ## Documentation
 
@@ -79,3 +85,4 @@ Phase 2.
 - [Security model](docs/SECURITY_MODEL.md)
 - [Test User Wallet security](docs/WALLET_SECURITY.md)
 - [Test User Wallet operations](docs/TEST_WALLET_OPERATIONS.md)
+- [tBNB funding operations](docs/TBNB_FUNDING.md)
