@@ -66,4 +66,28 @@ describe("canonical AurixRewardClaim ABI", () => {
       { internalType: "uint256", name: "deadline", type: "uint256" },
     ]);
   });
+
+  it("defines the exact deployed createCampaign parameter order", async () => {
+    const bytes = await readFile(
+      new URL("../src/contracts/abi/AurixRewardClaim.json", import.meta.url),
+      "utf8",
+    );
+    const abi = JSON.parse(bytes) as Array<{
+      inputs?: Array<{ internalType: string; name: string; type: string }>;
+      name?: string;
+      type: string;
+    }>;
+    const createCampaign = abi.find(
+      (entry) => entry.type === "function" && entry.name === "createCampaign",
+    );
+    expect(createCampaign?.inputs).toEqual([
+      { internalType: "bytes32", name: "campaignId", type: "bytes32" },
+      { internalType: "uint256", name: "budget", type: "uint256" },
+      { internalType: "uint256", name: "maxRewardAmount", type: "uint256" },
+      { internalType: "uint64", name: "startTime", type: "uint64" },
+      { internalType: "uint64", name: "endTime", type: "uint64" },
+      { internalType: "uint64", name: "claimInterval", type: "uint64" },
+      { internalType: "bool", name: "active", type: "bool" },
+    ]);
+  });
 });
