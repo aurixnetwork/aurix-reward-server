@@ -4,6 +4,7 @@ import { z } from "zod";
 import {
   AURIX_REWARD_CONTRACT_ADDRESS,
   BSC_TESTNET_CHAIN_ID,
+  DEFAULT_WALLET_ENCRYPTION_KEY_VERSION,
   IRB_TEST_TOKEN_ADDRESS,
 } from "./constants.js";
 
@@ -21,6 +22,20 @@ const optionalUrl = z.preprocess(
   (value) => (value === "" ? undefined : value),
   httpUrl.optional(),
 );
+
+const BASE64_PATTERN = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
+
+function decodeWalletEncryptionKey(value: string): Buffer | undefined {
+  if (!BASE64_PATTERN.test(value)) {
+    return undefined;
+  }
+
+  const decoded = Buffer.from(value, "base64");
+  if (decoded.toString("base64") !== value || decoded.length !== 32) {
+    return undefined;
+  }
+  return decoded;
+}
 
 const environmentSchema = z
   .object({
@@ -44,6 +59,12 @@ const environmentSchema = z
     DB_USER: optionalNonEmptyString,
     DB_PASSWORD: z.string().optional(),
     DB_CONNECTION_LIMIT: z.coerce.number().int().min(1).max(100).default(10),
+    WALLET_ENCRYPTION_KEY: optionalNonEmptyString,
+    WALLET_ENCRYPTION_KEY_VERSION: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .default(DEFAULT_WALLET_ENCRYPTION_KEY_VERSION),
   })
   .superRefine((value, context) => {
     if (value.BSC_TESTNET_CHAIN_ID !== BSC_TESTNET_CHAIN_ID) {
@@ -73,6 +94,16 @@ const environmentSchema = z
         code: "custom",
         message: "DB_HOST, DB_NAME, and DB_USER must be supplied together",
         path: ["DB_HOST"],
+      });
+    }
+    if (
+      value.WALLET_ENCRYPTION_KEY &&
+      !decodeWalletEncryptionKey(value.WALLET_ENCRYPTION_KEY)
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "must be canonical Base64 encoding of exactly 32 bytes",
+        path: ["WALLET_ENCRYPTION_KEY"],
       });
     }
   });
@@ -123,6 +154,12 @@ export interface AppConfig {
     readonly secondaryUrl: string | undefined;
     readonly timeoutMs: number;
   };
+  readonly walletEncryption: WalletEncryptionConfig | undefined;
+}
+
+export interface WalletEncryptionConfig {
+  readonly key: Buffer;
+  readonly version: number;
 }
 
 export class ConfigurationError extends Error {
@@ -157,6 +194,9 @@ export function loadEnvironment(source: NodeJS.ProcessEnv = process.env): AppCon
           user: value.DB_USER,
         }
       : undefined;
+  const encryptionKey = value.WALLET_ENCRYPTION_KEY
+    ? decodeWalletEncryptionKey(value.WALLET_ENCRYPTION_KEY)
+    : undefined;
 
   return {
     contracts: {
@@ -172,5 +212,19 @@ export function loadEnvironment(source: NodeJS.ProcessEnv = process.env): AppCon
       secondaryUrl: value.BSC_TESTNET_RPC_URL_SECONDARY,
       timeoutMs: value.RPC_TIMEOUT_MS,
     },
+    walletEncryption: encryptionKey
+      ? { key: encryptionKey, version: value.WALLET_ENCRYPTION_KEY_VERSION }
+      : undefined,
   };
+}
+
+export function requireWalletEncryptionConfig(
+  config: AppConfig,
+): WalletEncryptionConfig {
+  if (!config.walletEncryption) {
+    throw new ConfigurationError([
+      "WALLET_ENCRYPTION_KEY: required for test wallet operations and must be canonical Base64 encoding of exactly 32 bytes",
+    ]);
+  }
+  return config.walletEncryption;
 }

@@ -12,7 +12,7 @@ logs/
 private/
 secrets/
 keys/
-wallets/
+/wallets/
 exports/
 backups/
 

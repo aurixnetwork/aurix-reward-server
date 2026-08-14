@@ -15,7 +15,10 @@
     "health:testnet": "tsx src/cli/health.ts",
     "inspect:reward:testnet": "tsx src/cli/inspect-reward-contract.ts",
     "inspect:irb:testnet": "tsx src/cli/inspect-irb-token.ts",
-    "db:migrate": "tsx src/cli/migrate-database.ts"
+    "db:migrate": "tsx src/cli/migrate-database.ts",
+    "wallets:create:test": "tsx src/cli/create-test-wallets.ts",
+    "wallets:list:test": "tsx src/cli/list-test-wallets.ts",
+    "wallets:validate:test": "tsx src/cli/validate-test-wallets.ts"
   },
   "dependencies": {
     "dotenv": "17.4.2",

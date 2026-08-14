@@ -12,3 +12,7 @@ export const IRB_EXPECTED_DECIMALS = 18;
 
 export const REWARD_EIP712_NAME = "AurixRewardClaim";
 export const REWARD_EIP712_VERSION = "1";
+
+export const DEFAULT_WALLET_ENCRYPTION_KEY_VERSION = 1;
+export const DEFAULT_TEST_WALLET_COUNT = 10;
+export const MAX_TEST_WALLET_COUNT = 100;
