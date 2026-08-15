@@ -11,7 +11,8 @@ execution command.
 No wallet is generated. TX 1 reuses the existing Admin/Funding Wallet; TX 2
 uses the existing Operations Wallet; TX 3 uses the current IRB Token Owner.
 Their private keys remain only in the ignored `.env` or an approved secret
-manager and are never logged or persisted.
+manager and are never logged or persisted. A signer key is loaded and validated
+only when current on-chain state requires that signer's transaction.
 
 ## Approved parameters
 
@@ -64,6 +65,12 @@ stored.
 - Any existing campaign parameter mismatch stops the workflow for owner review.
 - Reward Contract inventory at or above 3.3 IRB produces
   `SKIP_TARGET_REACHED` for TX 3.
+- Every signer requirement follows its planned action: Admin is required only
+  for a nonzero Operations top-up, Operations only for campaign creation, and
+  the IRB Token Owner only for a nonzero inventory transfer. A skipped signer
+  reports `SKIPPED_NOT_REQUIRED` and its absent key is not a blocker.
+- If all three actions are satisfied, the plan contains zero transactions and
+  requires no transaction private key for status verification.
 - A signed, broadcast, or `PENDING_REVIEW` local operation blocks new execution.
   A timeout or unknown receipt is uncertainty, not failure and not permission
   to sign a replacement.
@@ -89,7 +96,7 @@ The Phase 4B-1 read-only planning command remains available:
 npm run campaign:plan:create:test
 ```
 
-After database migration, signer configuration, a passing preflight, and a
+After database migration, required signer configuration, a passing preflight, and a
 fresh owner review, the exact future execution command is:
 
 ```bash

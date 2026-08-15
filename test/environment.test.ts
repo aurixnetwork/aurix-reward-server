@@ -12,7 +12,7 @@ import {
   parsePositiveEtherAmount,
   requireApproverConfig,
   requireAuthorizationPolicy,
-  requireCampaignExecutionConfig,
+  requireCampaignSigner,
   requireFundingConfig,
   requireWalletEncryptionConfig,
 } from "../src/config/environment.js";
@@ -199,11 +199,11 @@ describe("loadEnvironment", () => {
   });
 
   it("rejects campaign signer keys that do not derive to fixed expected addresses", () => {
-    expect(() => requireCampaignExecutionConfig(loadEnvironment({
+    const config = loadEnvironment({
       ...requiredEnvironment,
-      TESTNET_FUNDING_PRIVATE_KEY: Wallet.createRandom().privateKey,
       OPERATIONS_PRIVATE_KEY: Wallet.createRandom().privateKey,
-      IRB_TOKEN_OWNER_PRIVATE_KEY: Wallet.createRandom().privateKey,
-    }))).toThrow(ConfigurationError);
+    });
+    expect(() => requireCampaignSigner(config.campaignExecution, "OPERATIONS"))
+      .toThrow(ConfigurationError);
   });
 });

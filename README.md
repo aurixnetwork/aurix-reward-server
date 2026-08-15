@@ -16,6 +16,8 @@ transaction order, and gas without loading a signer or sending a transaction.
 Phase 4B-2 adds zero-transaction execution preflight, evidence-backed three-step
 execution tooling, idempotent target funding, and status reporting. Actual
 execution remains independently owner-gated and was not run during development.
+Signer keys are required only for transactions still required by live state;
+target-satisfied steps need no corresponding private key.
 
 ## Fixed environment
 

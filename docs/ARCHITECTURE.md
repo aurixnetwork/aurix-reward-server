@@ -105,7 +105,7 @@ of truth.
 ## Phase 4B-2 Test Campaign execution
 
 ```text
-fixed chain/contracts/addresses + three address-asserted existing signers
+fixed chain/contracts/addresses + only action-required address-asserted signers
         |
 zero-transaction execution preflight + independent false-default guard
         |

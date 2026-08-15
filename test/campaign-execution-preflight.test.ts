@@ -36,6 +36,31 @@ function campaignConfig(): CampaignExecutionEnvironmentConfig {
   };
 }
 
+const testSignerAddresses: Readonly<Record<string, string>> = {
+  "admin-test-key": TESTNET_ADMIN_ADDRESS,
+  "operations-test-key": TESTNET_OPERATIONS_ADDRESS,
+  "owner-test-key": TESTNET_IRB_TOKEN_OWNER_ADDRESS,
+};
+
+function verifiedCampaignConfig(options: {
+  readonly admin?: boolean;
+  readonly irbTokenOwner?: boolean;
+  readonly operations?: boolean;
+} = {}): CampaignExecutionEnvironmentConfig {
+  return {
+    ...campaignConfig(),
+    adminPrivateKey: options.admin === false ? undefined : "admin-test-key",
+    irbTokenOwnerPrivateKey: options.irbTokenOwner === false ? undefined : "owner-test-key",
+    operationsPrivateKey: options.operations === false ? undefined : "operations-test-key",
+  };
+}
+
+function deriveTestSignerAddress(privateKey: string): string {
+  const address = testSignerAddresses[privateKey];
+  if (!address) throw new Error("Unknown deterministic test signer");
+  return address;
+}
+
 function provider(balances: Readonly<Record<string, bigint>> = {}): CampaignExecutionProvider {
   return {
     broadcastTransaction: vi.fn(() => { throw new Error("preflight must not broadcast"); }),
@@ -170,5 +195,128 @@ describe("campaign execution preflight", () => {
     ]) {
       expect(result.checks).toContainEqual({ name: check, passed: false });
     }
+  });
+});
+
+describe("action-conditional campaign signer requirements", () => {
+  it("blocks a missing IRB owner only when an IRB transfer is required", async () => {
+    const blocked = await createCampaignExecutionPreflight({
+      campaignConfig: verifiedCampaignConfig({ irbTokenOwner: false }),
+      deriveSignerAddress: deriveTestSignerAddress,
+      irbClient: irbReader(parseUnits("100", 18), 0n),
+      provider: provider(),
+      rewardClient: rewardReader(),
+    });
+    expect(blocked.status).toBe("BLOCKED");
+    expect(blocked.signers[2]).toMatchObject({
+      required: true,
+      status: "REQUIRED_MISSING",
+    });
+
+    const ready = await createCampaignExecutionPreflight({
+      campaignConfig: verifiedCampaignConfig({ irbTokenOwner: false }),
+      deriveSignerAddress: deriveTestSignerAddress,
+      irbClient: irbReader(parseUnits("100", 18), REWARD_CONTRACT_IRB_TARGET),
+      provider: provider(),
+      rewardClient: rewardReader(),
+    });
+    expect(ready.status).toBe("READY_FOR_OWNER_EXECUTION");
+    expect(ready.signers[2]).toMatchObject({
+      configured: false,
+      required: false,
+      status: "SKIPPED_NOT_REQUIRED",
+    });
+    expect(ready.transactions.map((transaction) => transaction.kind)).toEqual([
+      "TBNB_GAS_TOPUP",
+      "CAMPAIGN_CREATE",
+    ]);
+  });
+
+  it("blocks a missing Admin only when the Operations top-up is required", async () => {
+    const blocked = await createCampaignExecutionPreflight({
+      campaignConfig: verifiedCampaignConfig({ admin: false }),
+      deriveSignerAddress: deriveTestSignerAddress,
+      irbClient: irbReader(parseUnits("100", 18), REWARD_CONTRACT_IRB_TARGET),
+      provider: provider(),
+      rewardClient: rewardReader(),
+    });
+    expect(blocked.status).toBe("BLOCKED");
+    expect(blocked.signers[0]?.status).toBe("REQUIRED_MISSING");
+
+    const ready = await createCampaignExecutionPreflight({
+      campaignConfig: verifiedCampaignConfig({ admin: false }),
+      deriveSignerAddress: deriveTestSignerAddress,
+      irbClient: irbReader(parseUnits("100", 18), REWARD_CONTRACT_IRB_TARGET),
+      provider: provider({ [TESTNET_OPERATIONS_ADDRESS]: OPERATIONS_TBNB_EXECUTION_TARGET }),
+      rewardClient: rewardReader(),
+    });
+    expect(ready.status).toBe("READY_FOR_OWNER_EXECUTION");
+    expect(ready.signers[0]).toMatchObject({
+      required: false,
+      status: "SKIPPED_NOT_REQUIRED",
+    });
+  });
+
+  it("requires Operations only while campaign creation is required", async () => {
+    const blocked = await createCampaignExecutionPreflight({
+      campaignConfig: verifiedCampaignConfig({ operations: false }),
+      deriveSignerAddress: deriveTestSignerAddress,
+      irbClient: irbReader(parseUnits("100", 18), REWARD_CONTRACT_IRB_TARGET),
+      provider: provider({ [TESTNET_OPERATIONS_ADDRESS]: OPERATIONS_TBNB_EXECUTION_TARGET }),
+      rewardClient: rewardReader(),
+    });
+    expect(blocked.status).toBe("BLOCKED");
+    expect(blocked.signers[1]?.status).toBe("REQUIRED_MISSING");
+
+    const existing = {
+      active: true,
+      budget: parseUnits("3", 18),
+      claimInterval: 3_600n,
+      distributed: 0n,
+      endTime: 1_700_604_800n,
+      exists: true,
+      maxRewardAmount: parseUnits("0.1", 18),
+      startTime: 1_700_000_000n,
+    };
+    const ready = await createCampaignExecutionPreflight({
+      campaignConfig: verifiedCampaignConfig({ operations: false }),
+      deriveSignerAddress: deriveTestSignerAddress,
+      irbClient: irbReader(),
+      provider: provider(),
+      rewardClient: rewardReader({ campaign: existing, role: false }),
+    });
+    expect(ready.signers[1]).toMatchObject({
+      required: false,
+      status: "SKIPPED_NOT_REQUIRED",
+    });
+    expect(ready.transactions.some((transaction) => transaction.kind === "CAMPAIGN_CREATE"))
+      .toBe(false);
+  });
+
+  it("requires no signer and plans zero transactions when all actions are satisfied", async () => {
+    const existing = {
+      active: true,
+      budget: parseUnits("3", 18),
+      claimInterval: 3_600n,
+      distributed: 0n,
+      endTime: 1_700_604_800n,
+      exists: true,
+      maxRewardAmount: parseUnits("0.1", 18),
+      startTime: 1_700_000_000n,
+    };
+    const result = await createCampaignExecutionPreflight({
+      campaignConfig: campaignConfig(),
+      irbClient: irbReader(parseUnits("100", 18), REWARD_CONTRACT_IRB_TARGET),
+      provider: provider({ [TESTNET_OPERATIONS_ADDRESS]: OPERATIONS_TBNB_EXECUTION_TARGET }),
+      rewardClient: rewardReader({ campaign: existing }),
+    });
+    expect(result.status).toBe("SKIP_ALREADY_CREATED");
+    expect(result.transactions).toHaveLength(0);
+    expect(result.transactionsSent).toBe(0);
+    expect(result.signers.map((signer) => signer.status)).toEqual([
+      "SKIPPED_NOT_REQUIRED",
+      "SKIPPED_NOT_REQUIRED",
+      "SKIPPED_NOT_REQUIRED",
+    ]);
   });
 });

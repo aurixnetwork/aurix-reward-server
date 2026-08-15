@@ -11,12 +11,13 @@ import {
   AURIX_REWARD_CONTRACT_ADDRESS,
   BSC_TESTNET_CHAIN_ID,
   IRB_TEST_TOKEN_ADDRESS,
+  TESTNET_ADMIN_ADDRESS,
   TESTNET_IRB_TOKEN_OWNER_ADDRESS,
   TESTNET_OPERATIONS_ADDRESS,
 } from "../config/constants.js";
-import type {
-  CampaignExecutionConfig,
-  CampaignExecutionEnvironmentConfig,
+import {
+  requireCampaignSigner,
+  type CampaignExecutionEnvironmentConfig,
 } from "../config/environment.js";
 import { applyGasLimitSafetyMargin } from "../funding/funding-plan.js";
 import type { RewardCampaign } from "../contracts/reward-contract-client.js";
@@ -63,8 +64,7 @@ export interface CampaignExecutionResult {
 
 export interface ExecuteCampaignInput {
   readonly broadcastProviders: readonly CampaignExecutionProvider[];
-  readonly config: CampaignExecutionConfig;
-  readonly environmentConfig: CampaignExecutionEnvironmentConfig;
+  readonly config: CampaignExecutionEnvironmentConfig;
   readonly irbClient: IrbReader;
   readonly primaryProvider: CampaignExecutionProvider;
   readonly repository: CampaignEvidenceRepository;
@@ -87,7 +87,7 @@ export async function executeTestCampaignWorkflow(
   const preflight = input.preflight
     ? await input.preflight()
     : await createCampaignExecutionPreflight({
-        campaignConfig: input.environmentConfig,
+        campaignConfig: input.config,
         irbClient: input.irbClient,
         provider: input.primaryProvider,
         rewardClient: input.rewardClient,
@@ -107,14 +107,15 @@ export async function executeTestCampaignWorkflow(
     operationsTopUp = "SKIP_TARGET_REACHED";
   } else {
     const fee = await executableFee(input, {
-      from: input.config.adminAddress,
-      to: input.config.operationsAddress,
+      from: TESTNET_ADMIN_ADDRESS,
+      to: input.config.operationsExpectedAddress,
       value: topUpAmount,
     });
-    const adminBalance = await input.primaryProvider.getBalance(input.config.adminAddress);
+    const adminBalance = await input.primaryProvider.getBalance(TESTNET_ADMIN_ADDRESS);
     if (adminBalance < topUpAmount + fee.gasLimit * fee.gasPriceWei) {
       throw new Error("Admin tBNB balance is insufficient for Operations target top-up");
     }
+    const admin = requireCampaignSigner(input.config, "ADMIN");
     const topUp = await runSignedOperation(input, {
       amountWei: topUpAmount,
       calldata: "0x",
@@ -125,11 +126,11 @@ export async function executeTestCampaignWorkflow(
         targetBalanceWei: OPERATIONS_TBNB_EXECUTION_TARGET.toString(),
         valueWei: topUpAmount.toString(),
       },
-      signer: new Wallet(input.config.adminPrivateKey),
-      to: input.config.operationsAddress,
+      signer: new Wallet(admin.privateKey),
+      to: input.config.operationsExpectedAddress,
       valueWei: topUpAmount,
       validate: async () =>
-        await input.primaryProvider.getBalance(input.config.operationsAddress) >=
+        await input.primaryProvider.getBalance(input.config.operationsExpectedAddress) >=
           operationsBalance + topUpAmount,
     });
     transactionsSent += topUp.transactionAccepted ? 1 : 0;
@@ -147,7 +148,7 @@ export async function executeTestCampaignWorkflow(
     campaignCreate = "SKIP_ALREADY_CREATED";
   } else {
     const role = await input.rewardClient.getRoleId("CAMPAIGN_MANAGER_ROLE");
-    if (!await input.rewardClient.hasRole(role, input.config.operationsAddress)) {
+    if (!await input.rewardClient.hasRole(role, input.config.operationsExpectedAddress)) {
       throw new Error("Operations does not hold CAMPAIGN_MANAGER_ROLE");
     }
     const latestBlock = await input.primaryProvider.getBlock("latest");
@@ -156,13 +157,14 @@ export async function executeTestCampaignWorkflow(
     const calldata = encodeCreateCampaign(proposal);
     const fee = await executableFee(input, {
       data: calldata,
-      from: input.config.operationsAddress,
+      from: input.config.operationsExpectedAddress,
       to: AURIX_REWARD_CONTRACT_ADDRESS,
     });
-    if (await input.primaryProvider.getBalance(input.config.operationsAddress) <
+    if (await input.primaryProvider.getBalance(input.config.operationsExpectedAddress) <
         fee.gasLimit * fee.gasPriceWei) {
       throw new Error("Operations tBNB balance is insufficient for createCampaign");
     }
+    const operations = requireCampaignSigner(input.config, "OPERATIONS");
     const create = await runSignedOperation(input, {
       amountWei: 0n,
       calldata,
@@ -170,7 +172,7 @@ export async function executeTestCampaignWorkflow(
       gasPriceWei: fee.gasPriceWei,
       operationType: "CAMPAIGN_CREATE",
       payload: publicProposal(proposal),
-      signer: new Wallet(input.config.operationsPrivateKey),
+      signer: new Wallet(operations.privateKey),
       to: AURIX_REWARD_CONTRACT_ADDRESS,
       valueWei: 0n,
       validate: async (receipt) =>
@@ -190,8 +192,7 @@ export async function executeTestCampaignWorkflow(
     irbTransfer = "SKIP_TARGET_REACHED";
   } else {
     const owner = getAddress(await input.irbClient.owner());
-    if (owner !== getAddress(TESTNET_IRB_TOKEN_OWNER_ADDRESS) ||
-        owner !== input.config.irbTokenOwnerAddress) {
+    if (owner !== getAddress(TESTNET_IRB_TOKEN_OWNER_ADDRESS)) {
       throw new Error("Configured IRB Token Owner is not the current on-chain token owner");
     }
     if (await input.irbClient.balanceOf(owner) < transferAmount) {
@@ -209,6 +210,7 @@ export async function executeTestCampaignWorkflow(
     if (await input.primaryProvider.getBalance(owner) < fee.gasLimit * fee.gasPriceWei) {
       throw new Error("IRB Token Owner tBNB balance is insufficient for transfer gas");
     }
+    const tokenOwnerSigner = requireCampaignSigner(input.config, "IRB_TOKEN_OWNER");
     const transfer = await runSignedOperation(input, {
       amountWei: transferAmount,
       calldata,
@@ -220,7 +222,7 @@ export async function executeTestCampaignWorkflow(
         inventoryTargetBaseUnits: REWARD_CONTRACT_IRB_TARGET.toString(),
         recipient: AURIX_REWARD_CONTRACT_ADDRESS,
       },
-      signer: new Wallet(input.config.irbTokenOwnerPrivateKey),
+      signer: new Wallet(tokenOwnerSigner.privateKey),
       to: IRB_TEST_TOKEN_ADDRESS,
       valueWei: 0n,
       validate: async (receipt) =>

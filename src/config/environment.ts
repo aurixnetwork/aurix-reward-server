@@ -348,15 +348,11 @@ export interface CampaignExecutionEnvironmentConfig {
   readonly operationsPrivateKey: string | undefined;
 }
 
-export interface CampaignExecutionConfig {
-  readonly adminAddress: string;
-  readonly adminPrivateKey: string;
-  readonly executionEnabled: boolean;
-  readonly irbTokenOwnerAddress: string;
-  readonly irbTokenOwnerPrivateKey: string;
-  readonly maxGasPriceWei: bigint | undefined;
-  readonly operationsAddress: string;
-  readonly operationsPrivateKey: string;
+export type CampaignSignerRole = "ADMIN" | "IRB_TOKEN_OWNER" | "OPERATIONS";
+
+export interface CampaignSignerConfig {
+  readonly address: string;
+  readonly privateKey: string;
 }
 
 export interface WalletEncryptionConfig {
@@ -460,49 +456,39 @@ export function loadEnvironment(source: NodeJS.ProcessEnv = process.env): AppCon
   };
 }
 
-export function requireCampaignExecutionConfig(
-  config: AppConfig,
-): CampaignExecutionConfig {
-  const campaign = config.campaignExecution;
-  const issues: string[] = [];
-  if (!campaign.adminPrivateKey) {
-    issues.push("TESTNET_FUNDING_PRIVATE_KEY: required as the fixed Admin signer for campaign TX 1");
+export function requireCampaignSigner(
+  config: CampaignExecutionEnvironmentConfig,
+  role: CampaignSignerRole,
+): CampaignSignerConfig {
+  const definition = role === "ADMIN"
+    ? {
+        expectedAddress: getAddress(TESTNET_ADMIN_ADDRESS),
+        field: "TESTNET_FUNDING_PRIVATE_KEY",
+        privateKey: config.adminPrivateKey,
+      }
+    : role === "OPERATIONS"
+      ? {
+          expectedAddress: config.operationsExpectedAddress,
+          field: "OPERATIONS_PRIVATE_KEY",
+          privateKey: config.operationsPrivateKey,
+        }
+      : {
+          expectedAddress: config.irbTokenOwnerExpectedAddress,
+          field: "IRB_TOKEN_OWNER_PRIVATE_KEY",
+          privateKey: config.irbTokenOwnerPrivateKey,
+        };
+  if (!definition.privateKey) {
+    throw new ConfigurationError([
+      `${definition.field}: required for the planned ${role} transaction`,
+    ]);
   }
-  if (!campaign.operationsPrivateKey) {
-    issues.push("OPERATIONS_PRIVATE_KEY: required for campaign TX 2");
+  const address = new Wallet(definition.privateKey).address;
+  if (address !== definition.expectedAddress) {
+    throw new ConfigurationError([
+      `${definition.field}: derived address does not match the fixed expected ${role} address`,
+    ]);
   }
-  if (!campaign.irbTokenOwnerPrivateKey) {
-    issues.push("IRB_TOKEN_OWNER_PRIVATE_KEY: required for campaign TX 3");
-  }
-  if (issues.length > 0) throw new ConfigurationError(issues);
-
-  const adminPrivateKey = campaign.adminPrivateKey as string;
-  const operationsPrivateKey = campaign.operationsPrivateKey as string;
-  const irbTokenOwnerPrivateKey = campaign.irbTokenOwnerPrivateKey as string;
-  const adminAddress = new Wallet(adminPrivateKey).address;
-  const operationsAddress = new Wallet(operationsPrivateKey).address;
-  const irbTokenOwnerAddress = new Wallet(irbTokenOwnerPrivateKey).address;
-  if (adminAddress !== getAddress(TESTNET_ADMIN_ADDRESS)) {
-    issues.push("TESTNET_FUNDING_PRIVATE_KEY: derived address is not the fixed Admin address");
-  }
-  if (operationsAddress !== campaign.operationsExpectedAddress) {
-    issues.push("OPERATIONS_ADDRESS: does not match OPERATIONS_PRIVATE_KEY");
-  }
-  if (irbTokenOwnerAddress !== campaign.irbTokenOwnerExpectedAddress) {
-    issues.push("IRB_TOKEN_OWNER_ADDRESS: does not match IRB_TOKEN_OWNER_PRIVATE_KEY");
-  }
-  if (issues.length > 0) throw new ConfigurationError(issues);
-
-  return {
-    adminAddress,
-    adminPrivateKey,
-    executionEnabled: campaign.executionEnabled,
-    irbTokenOwnerAddress,
-    irbTokenOwnerPrivateKey,
-    maxGasPriceWei: campaign.maxGasPriceWei,
-    operationsAddress,
-    operationsPrivateKey,
-  };
+  return { address, privateKey: definition.privateKey };
 }
 
 export function requireWalletEncryptionConfig(

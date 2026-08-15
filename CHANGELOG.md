@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Hardened Phase 4B-2 signer custody so Admin, Operations, and IRB Token Owner
+  keys are required only when their respective live state-changing action is
+  planned; target-satisfied steps report `SKIPPED_NOT_REQUIRED`.
+
 - Added Phase 4B-2 owner-gated Test Campaign execution tooling with an
   independent false-by-default guard, fixed signer address assertions, exact
   execution-time timestamps, and three strictly sequenced transactions.

@@ -102,10 +102,10 @@ the command.
 
 | Variable | Required | Rule |
 | --- | --- | --- |
-| `TESTNET_FUNDING_PRIVATE_KEY` | execution | Reused as fixed Admin signer for TX 1; must derive to `0x2A37820df48d298De3907557b02301A46C2e127f` |
-| `OPERATIONS_PRIVATE_KEY` | execution | Existing Operations key; must derive to its fixed address |
+| `TESTNET_FUNDING_PRIVATE_KEY` | only when TX 1 is required | Reused as fixed Admin signer; must derive to `0x2A37820df48d298De3907557b02301A46C2e127f` |
+| `OPERATIONS_PRIVATE_KEY` | only when TX 2 is required | Existing Operations key; must derive to its fixed address |
 | `OPERATIONS_ADDRESS` | defaulted | Must equal `0x9B2fB8ED115242477C9a8Ea511a0D85E122E1FbE` |
-| `IRB_TOKEN_OWNER_PRIVATE_KEY` | execution | Existing current IRB Token Owner key; must derive to its fixed address |
+| `IRB_TOKEN_OWNER_PRIVATE_KEY` | only when TX 3 amount is nonzero | Existing current IRB Token Owner key; must derive to its fixed address |
 | `IRB_TOKEN_OWNER_ADDRESS` | defaulted | Must equal `0xD0801a18cF74893B12849A6f2E7b4E469b5FFc89` |
 | `MAX_CAMPAIGN_GAS_PRICE_GWEI` | no | Positive maximum independently applied to each workflow transaction |
 | `CAMPAIGN_EXECUTION_ENABLED` | execution | Must explicitly equal `true`; tracked/default value is `false` |
@@ -113,5 +113,7 @@ the command.
 The campaign guard is independent from `FUNDING_EXECUTION_ENABLED`. The
 read-only execution preflight reports missing or mismatching signer
 configuration as failed checks while sending zero transactions. Execution
-strictly derives all three addresses and refuses any mismatch. Never add a key
-to `.env.example` or tracked content.
+derives and validates only the signers required by live planned actions. A
+target-satisfied step reports `SKIPPED_NOT_REQUIRED`; its signer key may be
+absent without blocking preflight or execution. Never add a real key to
+`.env.example` or tracked content.

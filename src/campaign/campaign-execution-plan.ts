@@ -48,8 +48,14 @@ export const irbTransferInterface = new Interface([
 export interface CampaignSignerCheck {
   readonly configured: boolean;
   readonly expectedAddress: string;
-  readonly matches: boolean;
+  readonly matches: boolean | null;
+  readonly required: boolean;
   readonly role: "ADMIN" | "IRB_TOKEN_OWNER" | "OPERATIONS";
+  readonly status:
+    | "REQUIRED_VALID"
+    | "REQUIRED_MISSING"
+    | "REQUIRED_MISMATCH"
+    | "SKIPPED_NOT_REQUIRED";
 }
 
 export interface CampaignPreflightCheck {
@@ -97,6 +103,7 @@ export interface CampaignExecutionPreflight {
 
 export interface CreateCampaignExecutionPreflightInput {
   readonly campaignConfig: CampaignExecutionEnvironmentConfig;
+  readonly deriveSignerAddress?: (privateKey: string) => string;
   readonly irbClient: IrbReader;
   readonly provider: CampaignExecutionProvider;
   readonly rewardClient: CampaignReader;
@@ -146,7 +153,11 @@ export async function createCampaignExecutionPreflight(
     : campaignMatchesApprovedBaseline(campaign)
       ? "SKIP_ALREADY_CREATED"
       : "STOP_MISMATCH";
-  const signers = signerChecks(input.campaignConfig);
+  const signers = signerChecks(input.campaignConfig, {
+    admin: operationsTopUpWei > 0n,
+    irbTokenOwner: requiredIrbTransfer > 0n,
+    operations: campaignAction === "CREATE_REQUIRED",
+  }, input.deriveSignerAddress);
   const gasPriceWei = feeData.gasPrice;
   const gasPriceWithinMaximum = input.campaignConfig.maxGasPriceWei === undefined ||
     gasPriceWei <= input.campaignConfig.maxGasPriceWei;
@@ -200,11 +211,13 @@ export async function createCampaignExecutionPreflight(
     { name: "reward_contract_bytecode", passed: rewardCode !== "0x" },
     { name: "irb_token_bytecode", passed: irbCode !== "0x" },
     { name: "campaign_not_mismatched", passed: campaignAction !== "STOP_MISMATCH" },
-    { name: "operations_campaign_manager_role", passed: hasRole },
-    { name: "admin_key_address", passed: signers[0]?.matches === true },
-    { name: "operations_key_address", passed: signers[1]?.matches === true },
-    { name: "irb_token_owner_key_address", passed: signers[2]?.matches === true },
-    { name: "irb_owner_on_chain", passed: normalizedTokenOwner === getAddress(TESTNET_IRB_TOKEN_OWNER_ADDRESS) },
+    { name: "operations_campaign_manager_role", passed:
+      campaignAction !== "CREATE_REQUIRED" || hasRole },
+    { name: "admin_key_address", passed: signerRequirementPassed(signers[0]) },
+    { name: "operations_key_address", passed: signerRequirementPassed(signers[1]) },
+    { name: "irb_token_owner_key_address", passed: signerRequirementPassed(signers[2]) },
+    { name: "irb_owner_on_chain", passed: requiredIrbTransfer === 0n ||
+      normalizedTokenOwner === getAddress(TESTNET_IRB_TOKEN_OWNER_ADDRESS) },
     { name: "admin_tbnb", passed: operationsTopUpWei === 0n ||
       adminTbnb >= operationsTopUpWei + (topUp?.estimatedFeeWei ?? 0n) },
     { name: "operations_tbnb_after_topup", passed: campaignAction !== "CREATE_REQUIRED" ||
@@ -265,12 +278,23 @@ export function encodeCreateCampaign(proposal: TestCampaignProposal): string {
   ]);
 }
 
-function signerChecks(config: CampaignExecutionEnvironmentConfig): CampaignSignerCheck[] {
+function signerChecks(
+  config: CampaignExecutionEnvironmentConfig,
+  required: {
+    readonly admin: boolean;
+    readonly irbTokenOwner: boolean;
+    readonly operations: boolean;
+  },
+  deriveSignerAddress: (privateKey: string) => string = (privateKey) =>
+    new Wallet(privateKey).address,
+): CampaignSignerCheck[] {
   return [
-    signerCheck("ADMIN", config.adminPrivateKey, TESTNET_ADMIN_ADDRESS),
-    signerCheck("OPERATIONS", config.operationsPrivateKey, config.operationsExpectedAddress),
+    signerCheck("ADMIN", config.adminPrivateKey, TESTNET_ADMIN_ADDRESS, required.admin,
+      deriveSignerAddress),
+    signerCheck("OPERATIONS", config.operationsPrivateKey, config.operationsExpectedAddress,
+      required.operations, deriveSignerAddress),
     signerCheck("IRB_TOKEN_OWNER", config.irbTokenOwnerPrivateKey,
-      config.irbTokenOwnerExpectedAddress),
+      config.irbTokenOwnerExpectedAddress, required.irbTokenOwner, deriveSignerAddress),
   ];
 }
 
@@ -278,14 +302,40 @@ function signerCheck(
   role: CampaignSignerCheck["role"],
   privateKey: string | undefined,
   expectedAddress: string,
+  required: boolean,
+  deriveSignerAddress: (privateKey: string) => string,
 ): CampaignSignerCheck {
+  const normalizedExpectedAddress = getAddress(expectedAddress);
+  if (!required) {
+    return {
+      configured: privateKey !== undefined,
+      expectedAddress: normalizedExpectedAddress,
+      matches: null,
+      required: false,
+      role,
+      status: "SKIPPED_NOT_REQUIRED",
+    };
+  }
   let matches = false;
   if (privateKey) {
     try {
-      matches = new Wallet(privateKey).address === getAddress(expectedAddress);
+      matches = getAddress(deriveSignerAddress(privateKey)) === getAddress(expectedAddress);
     } catch { /* malformed keys are rejected by environment validation */ }
   }
-  return { configured: privateKey !== undefined, expectedAddress: getAddress(expectedAddress), matches, role };
+  return {
+    configured: privateKey !== undefined,
+    expectedAddress: normalizedExpectedAddress,
+    matches,
+    required: true,
+    role,
+    status: !privateKey
+      ? "REQUIRED_MISSING"
+      : matches ? "REQUIRED_VALID" : "REQUIRED_MISMATCH",
+  };
+}
+
+function signerRequirementPassed(check: CampaignSignerCheck | undefined): boolean {
+  return check?.status === "REQUIRED_VALID" || check?.status === "SKIPPED_NOT_REQUIRED";
 }
 
 async function planTransaction(

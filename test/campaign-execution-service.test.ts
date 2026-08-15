@@ -26,6 +26,7 @@ import type {
 import {
   AURIX_REWARD_CONTRACT_ADDRESS,
   IRB_TEST_TOKEN_ADDRESS,
+  TESTNET_ADMIN_ADDRESS,
   TESTNET_IRB_TOKEN_OWNER_ADDRESS,
   TESTNET_OPERATIONS_ADDRESS,
 } from "../src/config/constants.js";
@@ -90,7 +91,7 @@ function executionInput(options: {
     getBalance: vi.fn((address: string) => Promise.resolve(
       address === TESTNET_OPERATIONS_ADDRESS || address === operations.address
         ? (options.operationsBalance ?? OPERATIONS_TBNB_EXECUTION_TARGET)
-        : address === admin.address
+        : address === TESTNET_ADMIN_ADDRESS
           ? (options.adminBalance ?? parseEther("1"))
           : parseEther("1"),
     )),
@@ -122,19 +123,9 @@ function executionInput(options: {
     broadcast,
     broadcastProviders: [provider],
     config: {
-      adminAddress: admin.address,
       adminPrivateKey: admin.privateKey,
       executionEnabled: true,
-      irbTokenOwnerAddress: TESTNET_IRB_TOKEN_OWNER_ADDRESS,
-      irbTokenOwnerPrivateKey: owner.privateKey,
-      maxGasPriceWei: undefined,
-      operationsAddress: operations.address,
-      operationsPrivateKey: operations.privateKey,
-    },
-    environmentConfig: {
-      adminPrivateKey: admin.privateKey,
-      executionEnabled: true,
-      irbTokenOwnerExpectedAddress: owner.address,
+      irbTokenOwnerExpectedAddress: TESTNET_IRB_TOKEN_OWNER_ADDRESS,
       irbTokenOwnerPrivateKey: owner.privateKey,
       maxGasPriceWei: undefined,
       operationsExpectedAddress: operations.address,
@@ -162,7 +153,15 @@ describe("campaign execution workflow", () => {
 
   it("reruns idempotently when all three targets already exist", async () => {
     const input = executionInput();
-    await expect(executeTestCampaignWorkflow(input)).resolves.toMatchObject({
+    await expect(executeTestCampaignWorkflow({
+      ...input,
+      config: {
+        ...input.config,
+        adminPrivateKey: undefined,
+        irbTokenOwnerPrivateKey: undefined,
+        operationsPrivateKey: undefined,
+      },
+    })).resolves.toMatchObject({
       status: "COMPLETED",
       steps: {
         campaignCreate: "SKIP_ALREADY_CREATED",

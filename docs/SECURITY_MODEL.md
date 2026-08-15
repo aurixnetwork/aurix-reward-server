@@ -6,8 +6,8 @@
 - Only the fixed Reward Contract and IRB addresses are accepted.
 - Contract clients have providers but no signers.
 - Approver, Funding/Admin, Operations, and IRB Token Owner secrets are loaded
-  only by separate explicit commands. Phase 4B-2 loads its three signers only
-  inside the independently guarded execution path.
+  only by separate explicit commands. Phase 4B-2 loads only the action-required
+  signers inside the independently guarded execution path.
 - Test User Wallet private keys exist only in controlled generation or
   decryption scope and are stored only as authenticated ciphertext.
 - No mnemonic is stored or returned by the generator module.
@@ -59,6 +59,13 @@ signed hash and public payload reach the database before broadcast, while raw
 signed bytes remain memory-only. A successful receipt is not confirmation
 until its exact event and final state validate. Unresolved evidence blocks
 rerun signing and every subsequent required step.
+
+Signer custody is action-conditional. The execution path does not require or
+load the Admin key when Operations already meets its tBNB target, the Operations
+key when the exact campaign already exists, or the IRB Token Owner key when the
+Reward Contract already meets its inventory target. A fully satisfied rerun
+needs no transaction signer. This minimizes high-value key custody and prevents
+fixed workflow roles from becoming unnecessary secret dependencies.
 
 ## Operational handling
 
