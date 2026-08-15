@@ -109,7 +109,7 @@ fixed chain/contracts/addresses + only action-required address-asserted signers
         |
 zero-transaction execution preflight + independent false-default guard
         |
-TX 1 missing-to-0.001 tBNB Admin -> Operations (or target skip)
+TX 1 only if TX 2 is required: missing-to-0.001 tBNB Admin -> Operations
         |
 TX 2 execution-time timestamps + Operations createCampaign (or exact-baseline skip)
         |

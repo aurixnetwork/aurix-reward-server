@@ -67,6 +67,10 @@ Reward Contract already meets its inventory target. A fully satisfied rerun
 needs no transaction signer. This minimizes high-value key custody and prevents
 fixed workflow roles from becoming unnecessary secret dependencies.
 
+The Operations tBNB buffer is transaction preparation, not a maintenance
+balance. Once campaign creation is satisfied, a lower Operations balance does
+not authorize or plan an Admin transfer.
+
 ## Operational handling
 
 Keep `.env` outside Git, use credentialed RPC URLs only through the environment,

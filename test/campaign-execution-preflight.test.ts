@@ -159,6 +159,9 @@ describe("campaign execution preflight", () => {
       rewardClient: rewardReader({ campaign: baseline }),
     });
     expect(matching.campaignAction).toBe("SKIP_ALREADY_CREATED");
+    expect(matching.operationsTopUpWei).toBe(0n);
+    expect(matching.transactions.some((transaction) => transaction.kind === "TBNB_GAS_TOPUP"))
+      .toBe(false);
     expect(matching.transactions.some((transaction) => transaction.kind === "CAMPAIGN_CREATE"))
       .toBe(false);
 
@@ -293,30 +296,35 @@ describe("action-conditional campaign signer requirements", () => {
       .toBe(false);
   });
 
-  it("requires no signer and plans zero transactions when all actions are satisfied", async () => {
-    const existing = {
-      active: true,
-      budget: parseUnits("3", 18),
-      claimInterval: 3_600n,
-      distributed: 0n,
-      endTime: 1_700_604_800n,
-      exists: true,
-      maxRewardAmount: parseUnits("0.1", 18),
-      startTime: 1_700_000_000n,
-    };
-    const result = await createCampaignExecutionPreflight({
-      campaignConfig: campaignConfig(),
-      irbClient: irbReader(parseUnits("100", 18), REWARD_CONTRACT_IRB_TARGET),
-      provider: provider({ [TESTNET_OPERATIONS_ADDRESS]: OPERATIONS_TBNB_EXECUTION_TARGET }),
-      rewardClient: rewardReader({ campaign: existing }),
+  it.each([
+    ["below target", OPERATIONS_TBNB_EXECUTION_TARGET - 1n],
+    ["zero", 0n],
+  ])("requires no signer or top-up when all actions are satisfied and Operations is %s",
+    async (_label, operationsBalance) => {
+      const existing = {
+        active: true,
+        budget: parseUnits("3", 18),
+        claimInterval: 3_600n,
+        distributed: 0n,
+        endTime: 1_700_604_800n,
+        exists: true,
+        maxRewardAmount: parseUnits("0.1", 18),
+        startTime: 1_700_000_000n,
+      };
+      const result = await createCampaignExecutionPreflight({
+        campaignConfig: campaignConfig(),
+        irbClient: irbReader(parseUnits("100", 18), REWARD_CONTRACT_IRB_TARGET),
+        provider: provider({ [TESTNET_OPERATIONS_ADDRESS]: operationsBalance }),
+        rewardClient: rewardReader({ campaign: existing }),
+      });
+      expect(result.status).toBe("FULLY_SATISFIED");
+      expect(result.operationsTopUpWei).toBe(0n);
+      expect(result.transactions).toHaveLength(0);
+      expect(result.transactionsSent).toBe(0);
+      expect(result.signers.map((signer) => signer.status)).toEqual([
+        "SKIPPED_NOT_REQUIRED",
+        "SKIPPED_NOT_REQUIRED",
+        "SKIPPED_NOT_REQUIRED",
+      ]);
     });
-    expect(result.status).toBe("SKIP_ALREADY_CREATED");
-    expect(result.transactions).toHaveLength(0);
-    expect(result.transactionsSent).toBe(0);
-    expect(result.signers.map((signer) => signer.status)).toEqual([
-      "SKIPPED_NOT_REQUIRED",
-      "SKIPPED_NOT_REQUIRED",
-      "SKIPPED_NOT_REQUIRED",
-    ]);
-  });
 });

@@ -95,7 +95,7 @@ export interface CampaignExecutionPreflight {
   readonly proposal: TestCampaignProposal;
   readonly requiredIrbTransfer: bigint;
   readonly signers: readonly CampaignSignerCheck[];
-  readonly status: "BLOCKED" | "READY_FOR_OWNER_EXECUTION" | "SKIP_ALREADY_CREATED";
+  readonly status: "BLOCKED" | "FULLY_SATISFIED" | "READY_FOR_OWNER_EXECUTION";
   readonly tokenOwner: string;
   readonly transactions: readonly CampaignPlannedTransaction[];
   readonly transactionsSent: 0;
@@ -146,13 +146,15 @@ export async function createCampaignExecutionPreflight(
     input.irbClient.balanceOf(AURIX_REWARD_CONTRACT_ADDRESS),
   ]);
   const normalizedTokenOwner = getAddress(tokenOwner);
-  const operationsTopUpWei = missingToTarget(operationsTbnb, OPERATIONS_TBNB_EXECUTION_TARGET);
   const requiredIrbTransfer = missingToTarget(rewardContractIrb, REWARD_CONTRACT_IRB_TARGET);
   const campaignAction = !campaign.exists
     ? "CREATE_REQUIRED"
     : campaignMatchesApprovedBaseline(campaign)
       ? "SKIP_ALREADY_CREATED"
       : "STOP_MISMATCH";
+  const operationsTopUpWei = campaignAction === "CREATE_REQUIRED"
+    ? missingToTarget(operationsTbnb, OPERATIONS_TBNB_EXECUTION_TARGET)
+    : 0n;
   const signers = signerChecks(input.campaignConfig, {
     admin: operationsTopUpWei > 0n,
     irbTokenOwner: requiredIrbTransfer > 0n,
@@ -242,9 +244,9 @@ export async function createCampaignExecutionPreflight(
     proposal,
     requiredIrbTransfer,
     signers,
-    status: ready
-      ? campaignAction === "SKIP_ALREADY_CREATED" ? "SKIP_ALREADY_CREATED" : "READY_FOR_OWNER_EXECUTION"
-      : "BLOCKED",
+    status: !ready
+      ? "BLOCKED"
+      : transactions.length === 0 ? "FULLY_SATISFIED" : "READY_FOR_OWNER_EXECUTION",
     tokenOwner: normalizedTokenOwner,
     transactions,
     transactionsSent: 0,

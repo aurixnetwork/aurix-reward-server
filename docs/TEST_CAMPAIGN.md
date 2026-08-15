@@ -38,8 +38,9 @@ in advance.
 The operations are never bundled and later steps do not run while an earlier
 required transaction is failed or unresolved.
 
-1. Admin sends only the missing tBNB required for Operations to reach 0.001
-   tBNB. If Operations already has at least the target, TX 1 is skipped.
+1. Only when campaign creation is required, Admin sends the missing tBNB needed
+   for Operations to reach the 0.001 tBNB execution buffer. If creation is
+   already satisfied, TX 1 is not planned regardless of Operations balance.
 2. Operations calls
    `createCampaign(bytes32,uint256,uint256,uint64,uint64,uint64,bool)`. Before
    signing, the tool rechecks nonexistence, `CAMPAIGN_MANAGER_ROLE`, balance,
@@ -60,6 +61,9 @@ stored.
 
 - An Operations balance at or above 0.001 tBNB produces
   `SKIP_TARGET_REACHED` for TX 1.
+- An already-created matching campaign makes Operations gas preparation
+  unnecessary. Falling below 0.001 tBNB does not trigger balance maintenance;
+  no Admin top-up is planned without an upcoming Operations transaction.
 - An existing campaign matching the approved fixed values and seven-day
   duration produces `SKIP_ALREADY_CREATED`; creation is not attempted again.
 - Any existing campaign parameter mismatch stops the workflow for owner review.

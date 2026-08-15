@@ -151,6 +151,8 @@ describe("read-only Test Campaign creation plan", () => {
     expect(result.blockers).toContain("CAMPAIGN_ALREADY_EXISTS");
     expect(result.transactions.some((transaction) => transaction.kind === "CAMPAIGN_CREATE"))
       .toBe(false);
+    expect(result.transactions.some((transaction) => transaction.kind === "TBNB_GAS_TOPUP"))
+      .toBe(false);
   });
 
   it("detects the wrong campaign manager role", async () => {

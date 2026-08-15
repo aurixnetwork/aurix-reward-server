@@ -284,7 +284,7 @@ export async function createTestCampaignCreationPlan(
   const requiredTopUp = rewardContractIrb < recommendedContractBalance
     ? recommendedContractBalance - rewardContractIrb
     : 0n;
-  const operationsTopUp = operationsTbnb < OPERATIONS_TBNB_TARGET
+  const operationsTopUp = !campaign.exists && operationsTbnb < OPERATIONS_TBNB_TARGET
     ? OPERATIONS_TBNB_TARGET - operationsTbnb
     : 0n;
   const gasPriceWei = feeData.gasPrice;

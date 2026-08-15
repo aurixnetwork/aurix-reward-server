@@ -152,7 +152,7 @@ describe("campaign execution workflow", () => {
   });
 
   it("reruns idempotently when all three targets already exist", async () => {
-    const input = executionInput();
+    const input = executionInput({ operationsBalance: 0n });
     await expect(executeTestCampaignWorkflow({
       ...input,
       config: {
@@ -166,7 +166,7 @@ describe("campaign execution workflow", () => {
       steps: {
         campaignCreate: "SKIP_ALREADY_CREATED",
         irbTransfer: "SKIP_TARGET_REACHED",
-        operationsTopUp: "SKIP_TARGET_REACHED",
+        operationsTopUp: "SKIP_NOT_REQUIRED",
       },
       transactionsSent: 0,
     });
@@ -180,7 +180,11 @@ describe("campaign execution workflow", () => {
   });
 
   it("rejects insufficient Admin tBNB before TX 1", async () => {
-    const input = executionInput({ adminBalance: 0n, operationsBalance: 0n });
+    const input = executionInput({
+      adminBalance: 0n,
+      campaign: emptyCampaign(),
+      operationsBalance: 0n,
+    });
     await expect(executeTestCampaignWorkflow(input)).rejects.toThrow("Admin tBNB");
     expect(input.broadcast).not.toHaveBeenCalled();
   });

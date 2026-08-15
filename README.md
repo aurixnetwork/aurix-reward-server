@@ -18,6 +18,8 @@ execution tooling, idempotent target funding, and status reporting. Actual
 execution remains independently owner-gated and was not run during development.
 Signer keys are required only for transactions still required by live state;
 target-satisfied steps need no corresponding private key.
+The Operations tBNB buffer is funded only to enable a planned Operations
+transaction and is never continuously restored after campaign creation.
 
 ## Fixed environment
 

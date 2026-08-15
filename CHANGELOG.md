@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Made the Operations tBNB top-up dependent on a pending campaign creation, so
+  an already-created campaign never triggers generic balance maintenance.
+
 - Hardened Phase 4B-2 signer custody so Admin, Operations, and IRB Token Owner
   keys are required only when their respective live state-changing action is
   planned; target-satisfied steps report `SKIPPED_NOT_REQUIRED`.

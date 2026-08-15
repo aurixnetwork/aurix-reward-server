@@ -47,6 +47,7 @@ import { createTestCampaignProposal } from "./campaign-plan.js";
 export type CampaignStepStatus =
   | "CONFIRMED"
   | "SKIP_ALREADY_CREATED"
+  | "SKIP_NOT_REQUIRED"
   | "SKIP_TARGET_REACHED"
   | "FAILED"
   | "PENDING_REVIEW"
@@ -101,52 +102,57 @@ export async function executeTestCampaignWorkflow(
   let campaignCreate: CampaignStepStatus = "NOT_RUN";
   let irbTransfer: CampaignStepStatus = "NOT_RUN";
 
-  const operationsBalance = await input.primaryProvider.getBalance(TESTNET_OPERATIONS_ADDRESS);
-  const topUpAmount = missingToTarget(operationsBalance, OPERATIONS_TBNB_EXECUTION_TARGET);
-  if (topUpAmount === 0n) {
-    operationsTopUp = "SKIP_TARGET_REACHED";
-  } else {
-    const fee = await executableFee(input, {
-      from: TESTNET_ADMIN_ADDRESS,
-      to: input.config.operationsExpectedAddress,
-      value: topUpAmount,
-    });
-    const adminBalance = await input.primaryProvider.getBalance(TESTNET_ADMIN_ADDRESS);
-    if (adminBalance < topUpAmount + fee.gasLimit * fee.gasPriceWei) {
-      throw new Error("Admin tBNB balance is insufficient for Operations target top-up");
-    }
-    const admin = requireCampaignSigner(input.config, "ADMIN");
-    const topUp = await runSignedOperation(input, {
-      amountWei: topUpAmount,
-      calldata: "0x",
-      gasLimit: fee.gasLimit,
-      gasPriceWei: fee.gasPriceWei,
-      operationType: "TBNB_GAS_TOPUP",
-      payload: {
-        targetBalanceWei: OPERATIONS_TBNB_EXECUTION_TARGET.toString(),
-        valueWei: topUpAmount.toString(),
-      },
-      signer: new Wallet(admin.privateKey),
-      to: input.config.operationsExpectedAddress,
-      valueWei: topUpAmount,
-      validate: async () =>
-        await input.primaryProvider.getBalance(input.config.operationsExpectedAddress) >=
-          operationsBalance + topUpAmount,
-    });
-    transactionsSent += topUp.transactionAccepted ? 1 : 0;
-    operationsTopUp = topUp.status;
-    if (topUp.status !== "CONFIRMED") {
-      return stopped(topUp.status, { campaignCreate, irbTransfer, operationsTopUp }, transactionsSent);
-    }
-  }
-
   const existingCampaign = await input.rewardClient.getCampaign(TEST_CAMPAIGN_ID);
   if (existingCampaign.exists) {
     if (!campaignMatchesApprovedBaseline(existingCampaign)) {
       throw new Error("Existing Test Campaign parameters differ from the approved baseline; owner review required");
     }
     campaignCreate = "SKIP_ALREADY_CREATED";
+    operationsTopUp = "SKIP_NOT_REQUIRED";
   } else {
+    const operationsBalance = await input.primaryProvider.getBalance(TESTNET_OPERATIONS_ADDRESS);
+    const topUpAmount = missingToTarget(operationsBalance, OPERATIONS_TBNB_EXECUTION_TARGET);
+    if (topUpAmount === 0n) {
+      operationsTopUp = "SKIP_TARGET_REACHED";
+    } else {
+      const topUpFee = await executableFee(input, {
+        from: TESTNET_ADMIN_ADDRESS,
+        to: input.config.operationsExpectedAddress,
+        value: topUpAmount,
+      });
+      const adminBalance = await input.primaryProvider.getBalance(TESTNET_ADMIN_ADDRESS);
+      if (adminBalance < topUpAmount + topUpFee.gasLimit * topUpFee.gasPriceWei) {
+        throw new Error("Admin tBNB balance is insufficient for Operations target top-up");
+      }
+      const admin = requireCampaignSigner(input.config, "ADMIN");
+      const topUp = await runSignedOperation(input, {
+        amountWei: topUpAmount,
+        calldata: "0x",
+        gasLimit: topUpFee.gasLimit,
+        gasPriceWei: topUpFee.gasPriceWei,
+        operationType: "TBNB_GAS_TOPUP",
+        payload: {
+          targetBalanceWei: OPERATIONS_TBNB_EXECUTION_TARGET.toString(),
+          valueWei: topUpAmount.toString(),
+        },
+        signer: new Wallet(admin.privateKey),
+        to: input.config.operationsExpectedAddress,
+        valueWei: topUpAmount,
+        validate: async () =>
+          await input.primaryProvider.getBalance(input.config.operationsExpectedAddress) >=
+            operationsBalance + topUpAmount,
+      });
+      transactionsSent += topUp.transactionAccepted ? 1 : 0;
+      operationsTopUp = topUp.status;
+      if (topUp.status !== "CONFIRMED") {
+        return stopped(
+          topUp.status,
+          { campaignCreate, irbTransfer, operationsTopUp },
+          transactionsSent,
+        );
+      }
+    }
+
     const role = await input.rewardClient.getRoleId("CAMPAIGN_MANAGER_ROLE");
     if (!await input.rewardClient.hasRole(role, input.config.operationsExpectedAddress)) {
       throw new Error("Operations does not hold CAMPAIGN_MANAGER_ROLE");
