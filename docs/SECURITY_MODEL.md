@@ -1,18 +1,19 @@
 # Security model
 
-## Phase 1 through Phase 4A guarantees
+## Phase 1 through Phase 4B-2 guarantees
 
 - Only BSC Testnet chain ID 97 is accepted.
 - Only the fixed Reward Contract and IRB addresses are accepted.
 - Contract clients have providers but no signers.
-- Approver and Funding secrets are loaded only by their separate, explicit
-  commands; Admin and Operations credentials are not loaded.
+- Approver, Funding/Admin, Operations, and IRB Token Owner secrets are loaded
+  only by separate explicit commands. Phase 4B-2 loads its three signers only
+  inside the independently guarded execution path.
 - Test User Wallet private keys exist only in controlled generation or
   decryption scope and are stored only as authenticated ciphertext.
 - No mnemonic is stored or returned by the generator module.
-- No command creates campaigns, sends IRB, or claims rewards. The funding plan
-  is read-only. Native tBNB execution exists only behind an explicit false-by-
-  default owner-review guard.
+- No unguarded command creates campaigns, sends IRB, or claims rewards.
+  Campaign status and execution preflight are read-only. Native funding and
+  Test Campaign execution use separate false-by-default owner-review guards.
 - Reports expose endpoint labels rather than RPC URLs.
 - Structured logging redacts private-key-, mnemonic-, seed-, wallet-ciphertext-,
   encryption-key-, password-, authorization-, and RPC URL-shaped fields.
@@ -50,6 +51,14 @@ collision with an ACTIVE test User Wallet. The Funding secret is never
 persisted, raw signed bytes remain in memory, and the signed hash reaches the
 database before broadcast. An RPC timeout is an uncertainty state, never proof
 of failure and never permission to create a different transaction.
+
+The campaign workflow reuses the fixed Admin/Funding Wallet only for the exact
+missing Operations gas top-up. Operations alone signs `createCampaign`; the IRB
+Token Owner alone signs inventory funding. Every key is address-asserted. The
+signed hash and public payload reach the database before broadcast, while raw
+signed bytes remain memory-only. A successful receipt is not confirmation
+until its exact event and final state validate. Unresolved evidence blocks
+rerun signing and every subsequent required step.
 
 ## Operational handling
 

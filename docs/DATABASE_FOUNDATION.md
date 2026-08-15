@@ -79,3 +79,13 @@ or `FAILED` on signing/Approver verification failure. `SIGNED`, `EXPIRED`,
 `CANCELLED`, and `CONSUMED` are explicit lifecycle states reserved for recovery
 and later claim processing. No private key, mnemonic, encryption key, or raw
 transaction is stored.
+
+## Phase 4B-2 campaign execution evidence
+
+Migration `0004_create_campaign_execution_operations.sql` adds a lightweight
+ledger for the three owner-gated Test Campaign operations. It stores a
+deterministic operation ID, operation type, public sender and payload, amount,
+nonce, gas settings, calldata hash, signed/broadcast hashes, receipt, block,
+fee, status, and timestamps. A generated active-operation key prevents a second
+unresolved operation of the same type. It does not duplicate campaign state and
+has no private-key or raw-signed-transaction column.

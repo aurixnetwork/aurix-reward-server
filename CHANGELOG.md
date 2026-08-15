@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Added Phase 4B-2 owner-gated Test Campaign execution tooling with an
+  independent false-by-default guard, fixed signer address assertions, exact
+  execution-time timestamps, and three strictly sequenced transactions.
+- Added idempotent Operations gas-target and Reward Contract IRB-inventory
+  logic, matching-campaign skip/mismatch stop behavior, exact event/final-state
+  validation, uncertainty handling, and signed-hash-before-broadcast evidence
+  persistence without keys or raw signed transactions.
+- Added zero-transaction campaign execution preflight and status commands plus
+  deterministic guard, calldata, timing, balance, role, event, receipt,
+  uncertainty, and rerun coverage.
+
 - Added the read-only Phase 4B-1 Test Campaign creation preflight with exact
   Solidity/ABI constraints, deterministic campaign ID, role and balance checks,
   transaction ordering, gas estimates, and zero-transaction output.

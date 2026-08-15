@@ -69,3 +69,17 @@ Campaign budgets are independent accounting caps rather than token
 reservations, so claim execution separately enforces actual IRB balance. See
 [Test Campaign creation preflight](TEST_CAMPAIGN.md) for exact constraints,
 treasury behavior, and the non-executed Testnet proposal.
+
+## Phase 4B-2 write validation
+
+The separate owner-gated campaign execution service uses the pinned canonical
+ABI to encode `createCampaign` and validate `CampaignCreated`. It uses a minimal
+standard ERC-20 ABI to encode IRB `transfer` and validate `Transfer`. The
+provider-only contract clients remain read surfaces.
+
+Each approved operation is locally signed and independently persisted before
+broadcast. Identical signed bytes may be retried across RPC endpoints, but a
+replacement is never inferred from timeout. TX 2 confirmation requires the
+exact event plus exact campaign state. TX 3 confirmation requires the exact
+event plus Reward Contract inventory of at least 3.3 IRB. Failure or uncertainty
+blocks the next required operation.

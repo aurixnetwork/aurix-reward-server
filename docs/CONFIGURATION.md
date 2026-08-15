@@ -97,3 +97,21 @@ The public role addresses and deterministic proposal are fixed in source for
 this Testnet preflight. Proposed start/end timestamps are derived from the latest
 block timestamp on each invocation and are not persisted or approved by running
 the command.
+
+## Phase 4B-2 campaign execution
+
+| Variable | Required | Rule |
+| --- | --- | --- |
+| `TESTNET_FUNDING_PRIVATE_KEY` | execution | Reused as fixed Admin signer for TX 1; must derive to `0x2A37820df48d298De3907557b02301A46C2e127f` |
+| `OPERATIONS_PRIVATE_KEY` | execution | Existing Operations key; must derive to its fixed address |
+| `OPERATIONS_ADDRESS` | defaulted | Must equal `0x9B2fB8ED115242477C9a8Ea511a0D85E122E1FbE` |
+| `IRB_TOKEN_OWNER_PRIVATE_KEY` | execution | Existing current IRB Token Owner key; must derive to its fixed address |
+| `IRB_TOKEN_OWNER_ADDRESS` | defaulted | Must equal `0xD0801a18cF74893B12849A6f2E7b4E469b5FFc89` |
+| `MAX_CAMPAIGN_GAS_PRICE_GWEI` | no | Positive maximum independently applied to each workflow transaction |
+| `CAMPAIGN_EXECUTION_ENABLED` | execution | Must explicitly equal `true`; tracked/default value is `false` |
+
+The campaign guard is independent from `FUNDING_EXECUTION_ENABLED`. The
+read-only execution preflight reports missing or mismatching signer
+configuration as failed checks while sending zero transactions. Execution
+strictly derives all three addresses and refuses any mismatch. Never add a key
+to `.env.example` or tracked content.

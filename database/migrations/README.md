@@ -15,3 +15,8 @@ mnemonics, or raw signed transactions. Phase 4A adds
 strings and unique job, reward ID, and campaign/claimant/contract-nonce guards.
 It stores the public Approver signature and typed-data hash, never the Approver
 key. Claim tables remain deferred to their owning phase.
+
+Phase 4B-2 adds `0004_create_campaign_execution_operations.sql`. It stores
+public operation payloads, signed/broadcast hashes, receipts, blocks, gas, fees,
+and status for the three campaign operations. It stores no key or raw signed
+transaction.

@@ -2,16 +2,20 @@
 
 Public backend repository for the Aurix Network reward authorization and self-claim system.
 
-## Phase 4B-1 status
+## Phase 4B-2 status
 
 Phase 1's BSC Testnet foundation and Phase 2's encrypted ten-wallet store remain
 intact, and Phase 3 funding is complete. Phase 4A adds the read-only campaign
 model, exact EIP-712 RewardAuthorization implementation, explicit TEST
 ELIGIBILITY abstraction, and persisted Approver signatures. It sends no
-transaction; campaign creation, IRB transfer, and reward claims remain absent.
+transaction; at the Phase 4A boundary campaign creation, IRB transfer, and
+reward claims remained absent.
 Phase 4B-1 adds an exact source-derived, read-only Test Campaign creation plan.
 It validates roles, balances, deterministic campaign identity, parameter bounds,
 transaction order, and gas without loading a signer or sending a transaction.
+Phase 4B-2 adds zero-transaction execution preflight, evidence-backed three-step
+execution tooling, idempotent target funding, and status reporting. Actual
+execution remains independently owner-gated and was not run during development.
 
 ## Fixed environment
 
@@ -58,6 +62,10 @@ npm run funding:status:test
 npm run funding:execute:test
 npm run campaign:inspect:test -- --campaign-id <bytes32>
 npm run campaign:plan:create:test
+npm run campaign:execute:preflight:test
+npm run campaign:status:test
+# Owner-reviewed operation only; disabled unless CAMPAIGN_EXECUTION_ENABLED=true
+npm run campaign:execute:test
 npm run authorization:plan:test -- --wallet-id 1 --campaign-id <bytes32> --amount <IRB>
 npm run authorization:create:test -- --wallet-id 1 --campaign-id <bytes32> --amount <IRB>
 npm run authorization:verify:test -- --job-id <uuid>
@@ -80,7 +88,9 @@ The server verifies off-chain eligibility, creates an EIP-712 Approver authoriza
 The User Wallet is the transaction sender, gas payer, and reward recipient.
 
 The Phase 3 Funding Wallet may send only native tBNB to test User Wallets through
-the explicitly guarded execution command. In Phase 4A the Approver signs only
+the explicitly guarded execution command. Phase 4B-2 reuses that Admin key only
+for the exact Operations gas-target top-up; Operations signs campaign creation
+and the IRB owner signs target-inventory funding. In Phase 4A the Approver signs only
 off-chain typed data and pays no gas. A later phase will let the User Wallet send
 the claim transaction; that write path remains unimplemented.
 
@@ -96,4 +106,4 @@ the claim transaction; that write path remains unimplemented.
 - [Test User Wallet operations](docs/TEST_WALLET_OPERATIONS.md)
 - [tBNB funding operations](docs/TBNB_FUNDING.md)
 - [Reward authorization](docs/REWARD_AUTHORIZATION.md)
-- [Test Campaign preflight](docs/TEST_CAMPAIGN.md)
+- [Test Campaign operations](docs/TEST_CAMPAIGN.md)

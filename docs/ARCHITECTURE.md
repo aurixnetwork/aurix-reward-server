@@ -102,6 +102,30 @@ is not a claim of on-chain existence. No server campaign registry is introduced
 before a real creation transaction exists; the public mapping remains the source
 of truth.
 
+## Phase 4B-2 Test Campaign execution
+
+```text
+fixed chain/contracts/addresses + three address-asserted existing signers
+        |
+zero-transaction execution preflight + independent false-default guard
+        |
+TX 1 missing-to-0.001 tBNB Admin -> Operations (or target skip)
+        |
+TX 2 execution-time timestamps + Operations createCampaign (or exact-baseline skip)
+        |
+successful receipt + exact CampaignCreated + exact campaign mapping
+        |
+TX 3 missing-to-3.3 IRB owner -> Reward Contract (or inventory skip)
+        |
+successful receipt + exact Transfer + final inventory validation
+```
+
+Every sent operation signs locally, persists its deterministic operation ID and
+signed hash before broadcast, then records broadcast, receipt, gas, fee, and
+final status independently. Raw signed bytes remain memory-only. A failure or
+uncertainty stops the sequence, and unresolved local evidence blocks rerun
+signing. Status and preflight never broadcast.
+
 ## Modules
 
 - `src/config` fixes the network and addresses and validates environment input.
@@ -120,7 +144,8 @@ of truth.
   signing, and independent verification.
 - `src/campaign` owns deterministic Test Campaign proposal validation, role and
   balance sufficiency checks, unsigned transaction ordering, gas estimation,
-  and safe public presentation.
+  guarded three-step execution, exact event/final-state validation, evidence,
+  RPC uncertainty handling, and safe public presentation.
 - `src/cli` owns explicit operational commands and always destroys RPC providers
   or closes database pools.
 
