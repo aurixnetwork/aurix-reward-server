@@ -1,0 +1,62 @@
+import { formatEther, formatUnits } from "ethers";
+
+import type { CampaignExecutionPreflight } from "./campaign-execution-plan.js";
+
+export function presentCampaignExecutionPreflight(plan: CampaignExecutionPreflight): object {
+  return {
+    balances: {
+      adminTbnb: formatEther(plan.balances.adminTbnb),
+      adminTbnbWei: plan.balances.adminTbnb.toString(),
+      operationsTbnb: formatEther(plan.balances.operationsTbnb),
+      operationsTbnbWei: plan.balances.operationsTbnb.toString(),
+      rewardContractIrb: formatUnits(plan.balances.rewardContractIrb, 18),
+      rewardContractIrbBaseUnits: plan.balances.rewardContractIrb.toString(),
+      tokenOwnerIrb: formatUnits(plan.balances.tokenOwnerIrb, 18),
+      tokenOwnerIrbBaseUnits: plan.balances.tokenOwnerIrb.toString(),
+      tokenOwnerTbnb: formatEther(plan.balances.tokenOwnerTbnb),
+      tokenOwnerTbnbWei: plan.balances.tokenOwnerTbnb.toString(),
+    },
+    blockNumber: plan.blockNumber,
+    campaignAction: plan.campaignAction,
+    checks: plan.checks,
+    contractPaused: plan.contractPaused,
+    gasPriceGwei: formatUnits(plan.gasPriceWei, "gwei"),
+    gasPriceWei: plan.gasPriceWei.toString(),
+    gasPriceWithinMaximum: plan.gasPriceWithinMaximum,
+    operationsTopUpTbnb: formatEther(plan.operationsTopUpWei),
+    operationsTopUpWei: plan.operationsTopUpWei.toString(),
+    proposal: {
+      active: plan.proposal.active,
+      budgetBaseUnits: plan.proposal.budget.toString(),
+      budgetIrb: formatUnits(plan.proposal.budget, 18),
+      campaignId: plan.proposal.campaignId,
+      claimIntervalSeconds: plan.proposal.claimInterval.toString(),
+      durationSeconds: plan.proposal.duration.toString(),
+      endTime: plan.proposal.endTime.toString(),
+      label: plan.proposal.label,
+      maxRewardAmountBaseUnits: plan.proposal.maxRewardAmount.toString(),
+      maxRewardAmountIrb: formatUnits(plan.proposal.maxRewardAmount, 18),
+      startTime: plan.proposal.startTime.toString(),
+      startTimePolicy: "latest chain timestamp + 600 seconds",
+    },
+    requiredIrbTransferBaseUnits: plan.requiredIrbTransfer.toString(),
+    requiredIrbTransferIrb: formatUnits(plan.requiredIrbTransfer, 18),
+    signers: plan.signers,
+    status: plan.status,
+    tokenOwner: plan.tokenOwner,
+    transactions: plan.transactions.map((transaction) => ({
+      amountWei: transaction.amountWei.toString(),
+      estimatedFeeTbnb: formatEther(transaction.estimatedFeeWei),
+      estimatedFeeWei: transaction.estimatedFeeWei.toString(),
+      estimatedGas: transaction.estimatedGas.toString(),
+      gasLimit: transaction.gasLimit.toString(),
+      kind: transaction.kind,
+      order: transaction.order,
+      sender: transaction.sender,
+      to: transaction.to,
+      valueTbnb: formatEther(transaction.valueWei),
+      valueWei: transaction.valueWei.toString(),
+    })),
+    transactionsSent: plan.transactionsSent,
+  };
+}

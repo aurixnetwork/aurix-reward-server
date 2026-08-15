@@ -22,10 +22,17 @@ describe("structured logger", () => {
 
     logger.info({
       APPROVER_PRIVATE_KEY: "approver-secret",
+      OPERATIONS_PRIVATE_KEY: "operations-secret",
+      IRB_TOKEN_OWNER_PRIVATE_KEY: "owner-secret",
       TESTNET_FUNDING_PRIVATE_KEY: "funding-secret",
       WALLET_ENCRYPTION_KEY: "encryption-secret",
       config: {
         authorization: { approverPrivateKey: "nested-approver-secret" },
+        campaignExecution: {
+          adminPrivateKey: "nested-admin-secret",
+          irbTokenOwnerPrivateKey: "nested-owner-secret",
+          operationsPrivateKey: "nested-operations-secret",
+        },
         database: { password: "database-secret" },
         rpc: { primaryUrl: "sensitive-rpc-value" },
         walletEncryption: { key: "nested-encryption-secret" },
@@ -47,6 +54,11 @@ describe("structured logger", () => {
       "approver-secret",
       "nested-approver-secret",
       "funding-secret",
+      "operations-secret",
+      "owner-secret",
+      "nested-admin-secret",
+      "nested-owner-secret",
+      "nested-operations-secret",
       "encryption-secret",
       "nested-encryption-secret",
       "ciphertext-secret",

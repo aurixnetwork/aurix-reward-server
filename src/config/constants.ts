@@ -22,6 +22,9 @@ export const TESTNET_ADMIN_ADDRESS =
 export const TESTNET_OPERATIONS_ADDRESS =
   "0x9B2fB8ED115242477C9a8Ea511a0D85E122E1FbE";
 
+export const TESTNET_IRB_TOKEN_OWNER_ADDRESS =
+  "0xD0801a18cF74893B12849A6f2E7b4E469b5FFc89";
+
 export const REWARD_AUTHORIZATION_PRIMARY_TYPE = "RewardAuthorization";
 export const REWARD_AUTHORIZATION_TYPE_STRING =
   "RewardAuthorization(address claimant,uint256 amount,bytes32 campaignId,bytes32 rewardId,uint256 rewardNonce,uint256 validAfter,uint256 deadline)";

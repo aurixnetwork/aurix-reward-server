@@ -96,4 +96,18 @@ describe("migration discovery", () => {
     expect(migration).toContain("approver_signature");
     expect(migration).not.toMatch(/approver_private_key|user_private_key|mnemonic/);
   });
+
+  it("defines campaign execution evidence without raw transactions or keys", async () => {
+    const migration = await readFile(
+      new URL(
+        "../database/migrations/0004_create_campaign_execution_operations.sql",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+    expect(migration).toContain("CREATE TABLE campaign_execution_operations");
+    expect(migration).toContain("signed_tx_hash");
+    expect(migration).toContain("uq_campaign_execution_operations_active_type");
+    expect(migration).not.toMatch(/raw_transaction|private_key|mnemonic/);
+  });
 });

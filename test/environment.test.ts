@@ -12,6 +12,7 @@ import {
   parsePositiveEtherAmount,
   requireApproverConfig,
   requireAuthorizationPolicy,
+  requireCampaignExecutionConfig,
   requireFundingConfig,
   requireWalletEncryptionConfig,
 } from "../src/config/environment.js";
@@ -191,5 +192,18 @@ describe("loadEnvironment", () => {
         approverPrivateKey: `0x${"89".repeat(32)}`,
       },
     })).toThrow(ConfigurationError);
+  });
+
+  it("keeps campaign execution disabled by default", () => {
+    expect(loadEnvironment(requiredEnvironment).campaignExecution.executionEnabled).toBe(false);
+  });
+
+  it("rejects campaign signer keys that do not derive to fixed expected addresses", () => {
+    expect(() => requireCampaignExecutionConfig(loadEnvironment({
+      ...requiredEnvironment,
+      TESTNET_FUNDING_PRIVATE_KEY: Wallet.createRandom().privateKey,
+      OPERATIONS_PRIVATE_KEY: Wallet.createRandom().privateKey,
+      IRB_TOKEN_OWNER_PRIVATE_KEY: Wallet.createRandom().privateKey,
+    }))).toThrow(ConfigurationError);
   });
 });

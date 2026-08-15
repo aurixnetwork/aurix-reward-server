@@ -25,6 +25,9 @@
     "funding:status:test": "tsx src/cli/funding-status.ts",
     "campaign:inspect:test": "tsx src/cli/inspect-campaign.ts",
     "campaign:plan:create:test": "tsx src/cli/plan-campaign-creation.ts",
+    "campaign:execute:preflight:test": "tsx src/cli/preflight-campaign-execution.ts",
+    "campaign:execute:test": "tsx src/cli/execute-test-campaign.ts",
+    "campaign:status:test": "tsx src/cli/campaign-status.ts",
     "authorization:plan:test": "tsx src/cli/plan-authorization.ts",
     "authorization:create:test": "tsx src/cli/create-authorization.ts",
     "authorization:verify:test": "tsx src/cli/verify-authorization.ts"

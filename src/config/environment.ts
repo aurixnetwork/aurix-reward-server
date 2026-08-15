@@ -6,7 +6,10 @@ import {
   BSC_TESTNET_CHAIN_ID,
   DEFAULT_WALLET_ENCRYPTION_KEY_VERSION,
   IRB_TEST_TOKEN_ADDRESS,
+  TESTNET_ADMIN_ADDRESS,
   TESTNET_APPROVER_ADDRESS,
+  TESTNET_IRB_TOKEN_OWNER_ADDRESS,
+  TESTNET_OPERATIONS_ADDRESS,
 } from "./constants.js";
 
 const optionalNonEmptyString = z.preprocess(
@@ -109,6 +112,12 @@ const environmentSchema = z
     TEST_WALLET_TARGET_TBNB: optionalNonEmptyString,
     MAX_FUNDING_GAS_PRICE_GWEI: optionalNonEmptyString,
     FUNDING_EXECUTION_ENABLED: optionalBoolean.default(false),
+    OPERATIONS_PRIVATE_KEY: optionalNonEmptyString,
+    OPERATIONS_ADDRESS: z.string().default(TESTNET_OPERATIONS_ADDRESS),
+    IRB_TOKEN_OWNER_PRIVATE_KEY: optionalNonEmptyString,
+    IRB_TOKEN_OWNER_ADDRESS: z.string().default(TESTNET_IRB_TOKEN_OWNER_ADDRESS),
+    MAX_CAMPAIGN_GAS_PRICE_GWEI: optionalNonEmptyString,
+    CAMPAIGN_EXECUTION_ENABLED: optionalBoolean.default(false),
     APPROVER_PRIVATE_KEY: optionalNonEmptyString,
     APPROVER_ADDRESS: optionalNonEmptyString,
     AUTHORIZATION_VALIDITY_SECONDS: optionalPositiveSafeInteger,
@@ -186,6 +195,34 @@ const environmentSchema = z
         });
       }
     }
+    for (const [field, privateKey] of [
+      ["OPERATIONS_PRIVATE_KEY", value.OPERATIONS_PRIVATE_KEY],
+      ["IRB_TOKEN_OWNER_PRIVATE_KEY", value.IRB_TOKEN_OWNER_PRIVATE_KEY],
+    ] as const) {
+      if (privateKey) {
+        try {
+          void new Wallet(privateKey);
+        } catch {
+          context.addIssue({
+            code: "custom",
+            message: "must be a valid 32-byte EVM private key",
+            path: [field],
+          });
+        }
+      }
+    }
+    validateBaselineAddress(
+      value.OPERATIONS_ADDRESS,
+      TESTNET_OPERATIONS_ADDRESS,
+      "OPERATIONS_ADDRESS",
+      context,
+    );
+    validateBaselineAddress(
+      value.IRB_TOKEN_OWNER_ADDRESS,
+      TESTNET_IRB_TOKEN_OWNER_ADDRESS,
+      "IRB_TOKEN_OWNER_ADDRESS",
+      context,
+    );
     if (value.APPROVER_ADDRESS) {
       validateBaselineAddress(
         value.APPROVER_ADDRESS,
@@ -197,6 +234,7 @@ const environmentSchema = z
     for (const [field, amount] of [
       ["TEST_WALLET_TARGET_TBNB", value.TEST_WALLET_TARGET_TBNB],
       ["MAX_FUNDING_GAS_PRICE_GWEI", value.MAX_FUNDING_GAS_PRICE_GWEI],
+      ["MAX_CAMPAIGN_GAS_PRICE_GWEI", value.MAX_CAMPAIGN_GAS_PRICE_GWEI],
     ] as const) {
       if (amount) {
         try {
@@ -266,6 +304,7 @@ export interface AppConfig {
   readonly walletEncryption: WalletEncryptionConfig | undefined;
   readonly funding: FundingEnvironmentConfig;
   readonly authorization: AuthorizationEnvironmentConfig;
+  readonly campaignExecution: CampaignExecutionEnvironmentConfig;
 }
 
 export interface AuthorizationEnvironmentConfig {
@@ -297,6 +336,27 @@ export interface FundingConfig {
   readonly maxGasPriceWei: bigint | undefined;
   readonly privateKey: string;
   readonly targetBalanceWei: bigint;
+}
+
+export interface CampaignExecutionEnvironmentConfig {
+  readonly adminPrivateKey: string | undefined;
+  readonly executionEnabled: boolean;
+  readonly irbTokenOwnerExpectedAddress: string;
+  readonly irbTokenOwnerPrivateKey: string | undefined;
+  readonly maxGasPriceWei: bigint | undefined;
+  readonly operationsExpectedAddress: string;
+  readonly operationsPrivateKey: string | undefined;
+}
+
+export interface CampaignExecutionConfig {
+  readonly adminAddress: string;
+  readonly adminPrivateKey: string;
+  readonly executionEnabled: boolean;
+  readonly irbTokenOwnerAddress: string;
+  readonly irbTokenOwnerPrivateKey: string;
+  readonly maxGasPriceWei: bigint | undefined;
+  readonly operationsAddress: string;
+  readonly operationsPrivateKey: string;
 }
 
 export interface WalletEncryptionConfig {
@@ -383,6 +443,65 @@ export function loadEnvironment(source: NodeJS.ProcessEnv = process.env): AppCon
       approverPrivateKey: value.APPROVER_PRIVATE_KEY,
       validitySeconds: value.AUTHORIZATION_VALIDITY_SECONDS,
     },
+    campaignExecution: {
+      adminPrivateKey: value.TESTNET_FUNDING_PRIVATE_KEY,
+      executionEnabled: value.CAMPAIGN_EXECUTION_ENABLED,
+      irbTokenOwnerExpectedAddress: getAddress(value.IRB_TOKEN_OWNER_ADDRESS),
+      irbTokenOwnerPrivateKey: value.IRB_TOKEN_OWNER_PRIVATE_KEY,
+      maxGasPriceWei: value.MAX_CAMPAIGN_GAS_PRICE_GWEI
+        ? parsePositiveGweiAmount(
+            value.MAX_CAMPAIGN_GAS_PRICE_GWEI,
+            "MAX_CAMPAIGN_GAS_PRICE_GWEI",
+          )
+        : undefined,
+      operationsExpectedAddress: getAddress(value.OPERATIONS_ADDRESS),
+      operationsPrivateKey: value.OPERATIONS_PRIVATE_KEY,
+    },
+  };
+}
+
+export function requireCampaignExecutionConfig(
+  config: AppConfig,
+): CampaignExecutionConfig {
+  const campaign = config.campaignExecution;
+  const issues: string[] = [];
+  if (!campaign.adminPrivateKey) {
+    issues.push("TESTNET_FUNDING_PRIVATE_KEY: required as the fixed Admin signer for campaign TX 1");
+  }
+  if (!campaign.operationsPrivateKey) {
+    issues.push("OPERATIONS_PRIVATE_KEY: required for campaign TX 2");
+  }
+  if (!campaign.irbTokenOwnerPrivateKey) {
+    issues.push("IRB_TOKEN_OWNER_PRIVATE_KEY: required for campaign TX 3");
+  }
+  if (issues.length > 0) throw new ConfigurationError(issues);
+
+  const adminPrivateKey = campaign.adminPrivateKey as string;
+  const operationsPrivateKey = campaign.operationsPrivateKey as string;
+  const irbTokenOwnerPrivateKey = campaign.irbTokenOwnerPrivateKey as string;
+  const adminAddress = new Wallet(adminPrivateKey).address;
+  const operationsAddress = new Wallet(operationsPrivateKey).address;
+  const irbTokenOwnerAddress = new Wallet(irbTokenOwnerPrivateKey).address;
+  if (adminAddress !== getAddress(TESTNET_ADMIN_ADDRESS)) {
+    issues.push("TESTNET_FUNDING_PRIVATE_KEY: derived address is not the fixed Admin address");
+  }
+  if (operationsAddress !== campaign.operationsExpectedAddress) {
+    issues.push("OPERATIONS_ADDRESS: does not match OPERATIONS_PRIVATE_KEY");
+  }
+  if (irbTokenOwnerAddress !== campaign.irbTokenOwnerExpectedAddress) {
+    issues.push("IRB_TOKEN_OWNER_ADDRESS: does not match IRB_TOKEN_OWNER_PRIVATE_KEY");
+  }
+  if (issues.length > 0) throw new ConfigurationError(issues);
+
+  return {
+    adminAddress,
+    adminPrivateKey,
+    executionEnabled: campaign.executionEnabled,
+    irbTokenOwnerAddress,
+    irbTokenOwnerPrivateKey,
+    maxGasPriceWei: campaign.maxGasPriceWei,
+    operationsAddress,
+    operationsPrivateKey,
   };
 }
 

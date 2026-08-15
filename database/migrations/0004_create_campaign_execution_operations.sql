@@ -1,0 +1,33 @@
+CREATE TABLE campaign_execution_operations (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  operation_id CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  operation_type ENUM('TBNB_GAS_TOPUP','CAMPAIGN_CREATE','IRB_TRANSFER') NOT NULL,
+  expected_sender CHAR(42) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  amount_wei VARCHAR(78) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  tx_nonce BIGINT UNSIGNED NOT NULL,
+  gas_limit VARCHAR(78) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  gas_price_wei VARCHAR(78) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  calldata_hash CHAR(66) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  signed_tx_hash CHAR(66) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  broadcast_tx_hash CHAR(66) CHARACTER SET ascii COLLATE ascii_bin NULL,
+  payload_json JSON NOT NULL,
+  block_number BIGINT UNSIGNED NULL,
+  gas_used VARCHAR(78) CHARACTER SET ascii COLLATE ascii_bin NULL,
+  effective_gas_price_wei VARCHAR(78) CHARACTER SET ascii COLLATE ascii_bin NULL,
+  fee_paid_wei VARCHAR(78) CHARACTER SET ascii COLLATE ascii_bin NULL,
+  status ENUM('SIGNED','BROADCAST','CONFIRMED','FAILED','PENDING_REVIEW') NOT NULL,
+  error_code VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NULL,
+  receipt_json JSON NULL,
+  broadcast_at TIMESTAMP(6) NULL,
+  confirmed_at TIMESTAMP(6) NULL,
+  created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  active_operation_type VARCHAR(32) GENERATED ALWAYS AS (
+    CASE WHEN status IN ('SIGNED','BROADCAST','PENDING_REVIEW') THEN operation_type ELSE NULL END
+  ) STORED,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_campaign_execution_operations_operation_id (operation_id),
+  UNIQUE KEY uq_campaign_execution_operations_active_type (active_operation_type),
+  KEY idx_campaign_execution_operations_status (status),
+  KEY idx_campaign_execution_operations_broadcast_hash (broadcast_tx_hash)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
