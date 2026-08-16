@@ -173,6 +173,23 @@ post-state, and finalizes only valid evidence. It also checks transaction
 visibility, reward-ID use, and nonce movement. A reverted receipt becomes
 `FAILED`; missing or contradictory evidence remains `PENDING_REVIEW`.
 
+## Safe execution diagnostics
+
+Pre-broadcast execution failures use `ClaimExecutionError`, whose message is
+selected only from a fixed safe-message table. The command logger exposes only
+its `type`, `code`, and safe message. Generic `Error` continues to expose only
+its type, so arbitrary provider, signer, database, SQL, or environment error
+text is not logged.
+
+Safe codes are `CLAIM_EXECUTION_DISABLED`, `CLAIM_AUTHORIZATION_NOT_FOUND`,
+`CLAIM_PLAN_NOT_EXECUTABLE`, `CLAIM_TRANSACTION_INCOMPLETE`,
+`CLAIM_WALLET_INVALID`, `CLAIM_ENCRYPTION_VERSION_MISMATCH`,
+`CLAIM_NONCE_MISSING`, `CLAIM_CAMPAIGN_STATE_MISSING`,
+`CLAIM_SIGNING_FAILED`, and `CLAIM_SIGNED_PERSIST_FAILED`. Database-driver
+details are discarded when persistence failures are wrapped; SQL, key material,
+encrypted wallet fields, and environment values are never copied into the safe
+error.
+
 ## Authorization consumption policy
 
 Only exact confirmed-claim persistence changes an authorization from `READY` to

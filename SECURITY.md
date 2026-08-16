@@ -60,6 +60,9 @@ Security findings should be reported privately before public disclosure.
 - RPC uncertainty is retained for reconciliation without a new transaction.
   Confirmation requires receipt success, exact `RewardClaimed`, and exact
   replay/accounting/balance evidence before authorization becomes `CONSUMED`.
+- Claim execution diagnostics use fixed allowlisted messages. Only Claim error
+  type/code/safe-message fields are emitted; generic errors do not expose their
+  messages, and signing/database details are discarded during safe wrapping.
 
 Back up `WALLET_ENCRYPTION_KEY` and its version in an approved secret manager.
 If this key is lost, encrypted User Wallet private keys may be permanently

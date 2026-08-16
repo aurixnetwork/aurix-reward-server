@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuthorizationRepository } from "../src/authorization/authorization-repository.js";
 import type { AuthorizationJobRecord } from "../src/authorization/authorization-types.js";
 import { rewardClaimInterface } from "../src/claim/claim-codec.js";
+import { ClaimExecutionError } from "../src/claim/claim-execution-error.js";
 import type { ClaimRepository, ConfirmedClaimInput } from "../src/claim/claim-repository.js";
 import { executeClaim, reconcileClaimJobs } from "../src/claim/claim-service.js";
 import type {
@@ -156,7 +157,10 @@ function execute(enabled = true) {
 
 describe("claim signing and execution lifecycle", () => {
   it("refuses execution before wallet decryption or broadcast when the guard is false", async () => {
-    await expect(execute(false)).rejects.toThrow("CLAIM_EXECUTION_ENABLED");
+    await expect(execute(false)).rejects.toMatchObject({
+      code: "CLAIM_EXECUTION_DISABLED",
+      message: "Claim execution is disabled by the execution guard",
+    });
     expect(provider.broadcastSpy).not.toHaveBeenCalled();
     expect(repository.signed).toHaveLength(0);
   });
@@ -174,7 +178,64 @@ describe("claim signing and execution lifecycle", () => {
       rewardContractAddress: AURIX_REWARD_CONTRACT_ADDRESS,
       token,
       wallet: walletRecord,
-    })).rejects.toThrow("does not match authorization claimant");
+    })).rejects.toMatchObject({ code: "CLAIM_WALLET_INVALID" });
+    expect(provider.broadcastSpy).not.toHaveBeenCalled();
+  });
+
+  it("reports a safe signing failure code without broadcasting", async () => {
+    plan = {
+      ...plan,
+      transaction: { ...plan.transaction, from: approverWallet.address },
+    };
+    await expect(execute()).rejects.toMatchObject({
+      code: "CLAIM_SIGNING_FAILED",
+      message: "Claimant transaction signing failed",
+    });
+    expect(repository.signed).toHaveLength(0);
+    expect(provider.broadcastSpy).not.toHaveBeenCalled();
+  });
+
+  it("reports the encryption version mismatch with a safe code", async () => {
+    walletRecord = { ...walletRecord, encryptionKeyVersion: 2 };
+    await expect(execute()).rejects.toMatchObject({
+      code: "CLAIM_ENCRYPTION_VERSION_MISMATCH",
+    });
+    expect(repository.signed).toHaveLength(0);
+    expect(provider.broadcastSpy).not.toHaveBeenCalled();
+  });
+
+  it("wraps insertSigned driver details in a safe persistence code", async () => {
+    const sensitiveDriverMessage = [
+      "INSERT INTO reward_claim_jobs",
+      userWallet.privateKey,
+      walletRecord.encryptedPrivateKey,
+      walletRecord.encryptionIv,
+      walletRecord.encryptionAuthTag,
+      encryptionKey.toString("base64"),
+    ].join("|");
+    repository.insertError = new Error(sensitiveDriverMessage);
+    let caught: unknown;
+    try {
+      await execute();
+    } catch (error: unknown) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(ClaimExecutionError);
+    expect(caught).toMatchObject({
+      code: "CLAIM_SIGNED_PERSIST_FAILED",
+      message: "Signed claim evidence could not be persisted",
+    });
+    const safeOutput = JSON.stringify(caught);
+    for (const secret of [
+      sensitiveDriverMessage,
+      userWallet.privateKey,
+      walletRecord.encryptedPrivateKey,
+      walletRecord.encryptionIv,
+      walletRecord.encryptionAuthTag,
+      encryptionKey.toString("base64"),
+    ]) {
+      expect(safeOutput).not.toContain(secret);
+    }
     expect(provider.broadcastSpy).not.toHaveBeenCalled();
   });
 
@@ -255,6 +316,7 @@ class FakeClaimRepository implements ClaimRepository {
   public readonly events: string[] = [];
   public readonly signed: SignedClaimJobInput[] = [];
   public consumedAuthorization?: string;
+  public insertError?: Error;
   public status = "NONE";
 
   public findByAuthorizationJobId(): Promise<ClaimJobRecord | undefined> {
@@ -264,6 +326,7 @@ class FakeClaimRepository implements ClaimRepository {
   }
   public findByRewardId(): Promise<ClaimJobRecord | undefined> { return Promise.resolve(undefined); }
   public insertSigned(input: SignedClaimJobInput): Promise<void> {
+    if (this.insertError) return Promise.reject(this.insertError);
     this.events.push("SIGNED");
     this.signed.push(input);
     this.status = "SIGNED";

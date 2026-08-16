@@ -12,6 +12,7 @@ import {
   ClaimConfirmationError,
   validateConfirmedClaim,
 } from "./claim-confirmation.js";
+import { ClaimExecutionError } from "./claim-execution-error.js";
 import type { ClaimRepository } from "./claim-repository.js";
 import type {
   ClaimChainReader,
@@ -43,54 +44,58 @@ export interface ClaimExecutionResult {
 
 export async function executeClaim(input: ExecuteClaimInput): Promise<ClaimExecutionResult> {
   if (!input.executionEnabled) {
-    throw new Error("Claim execution is disabled; CLAIM_EXECUTION_ENABLED must equal true after owner review");
+    throw new ClaimExecutionError("CLAIM_EXECUTION_DISABLED");
   }
   if (input.plan.expectedAction !== "SIGN_AND_BROADCAST" || input.plan.blockers.length > 0) {
-    throw new Error("Claim plan is not executable; resolve blockers or reconcile the existing job");
+    throw new ClaimExecutionError("CLAIM_PLAN_NOT_EXECUTABLE");
   }
   if (!input.plan.transaction || input.plan.gasLimit === undefined || input.plan.gasPriceWei === undefined) {
-    throw new Error("Claim plan does not contain a complete transaction");
+    throw new ClaimExecutionError("CLAIM_TRANSACTION_INCOMPLETE");
   }
   if (input.wallet.status !== "ACTIVE" || input.wallet.id !== input.authorization.walletId) {
-    throw new Error("Encrypted User Wallet is not the ACTIVE authorization wallet");
+    throw new ClaimExecutionError("CLAIM_WALLET_INVALID");
   }
   if (input.wallet.encryptionKeyVersion !== input.encryption.version) {
-    throw new Error("No configured key exists for the User Wallet encryption version");
+    throw new ClaimExecutionError("CLAIM_ENCRYPTION_VERSION_MISMATCH");
   }
 
+  const txNonce = input.plan.currentEthereumTxNonce;
+  if (txNonce === undefined) throw new ClaimExecutionError("CLAIM_NONCE_MISSING");
+  const campaign = input.plan.campaign;
+  if (!campaign) throw new ClaimExecutionError("CLAIM_CAMPAIGN_STATE_MISSING");
   const { rawTransaction, signedTxHash } = await signWithEncryptedUserWallet(
     input.plan.transaction,
     input.wallet,
     input.authorization.claimant,
     input.encryption,
   );
-  const txNonce = input.plan.currentEthereumTxNonce;
-  if (txNonce === undefined) throw new Error("Pending Ethereum transaction nonce is missing");
-  const campaign = input.plan.campaign;
-  if (!campaign) throw new Error("Campaign preflight state is missing");
   const claimJobId = createClaimJobId(
     input.authorization.jobId,
     input.authorization.rewardId,
     txNonce,
     signedTxHash,
   );
-  await input.repository.insertSigned({
-    amount: input.authorization.amount,
-    authorizationJobId: input.authorization.jobId,
-    campaignDistributedBefore: campaign.distributed,
-    campaignId: input.authorization.campaignId,
-    claimant: input.authorization.claimant,
-    gasLimit: input.plan.gasLimit,
-    gasPriceWei: input.plan.gasPriceWei,
-    irbBalanceBefore: input.plan.irbBalance,
-    jobId: claimJobId,
-    rewardContractBalanceBefore: input.plan.rewardContractIrbBalance,
-    rewardId: input.authorization.rewardId,
-    rewardNonce: input.authorization.rewardNonce,
-    signedTxHash,
-    txNonce,
-    walletId: input.authorization.walletId,
-  });
+  try {
+    await input.repository.insertSigned({
+      amount: input.authorization.amount,
+      authorizationJobId: input.authorization.jobId,
+      campaignDistributedBefore: campaign.distributed,
+      campaignId: input.authorization.campaignId,
+      claimant: input.authorization.claimant,
+      gasLimit: input.plan.gasLimit,
+      gasPriceWei: input.plan.gasPriceWei,
+      irbBalanceBefore: input.plan.irbBalance,
+      jobId: claimJobId,
+      rewardContractBalanceBefore: input.plan.rewardContractIrbBalance,
+      rewardId: input.authorization.rewardId,
+      rewardNonce: input.authorization.rewardNonce,
+      signedTxHash,
+      txNonce,
+      walletId: input.authorization.walletId,
+    });
+  } catch {
+    throw new ClaimExecutionError("CLAIM_SIGNED_PERSIST_FAILED");
+  }
 
   let response;
   try {
@@ -259,20 +264,29 @@ async function signWithEncryptedUserWallet(
   claimant: string,
   encryption: WalletEncryptionConfig,
 ): Promise<{ readonly rawTransaction: string; readonly signedTxHash: string }> {
-  const privateKey = decryptWalletPrivateKey(
-    walletRecord,
-    walletRecord.walletAddress,
-    encryption.key,
-  );
-  const signer = new Wallet(privateKey);
+  let signer: Wallet;
+  try {
+    const privateKey = decryptWalletPrivateKey(
+      walletRecord,
+      walletRecord.walletAddress,
+      encryption.key,
+    );
+    signer = new Wallet(privateKey);
+  } catch {
+    throw new ClaimExecutionError("CLAIM_WALLET_INVALID");
+  }
   if (
     signer.address !== getAddress(walletRecord.walletAddress) ||
     signer.address !== getAddress(claimant)
   ) {
-    throw new Error("Decrypted User Wallet address does not match authorization claimant");
+    throw new ClaimExecutionError("CLAIM_WALLET_INVALID");
   }
-  const rawTransaction = await signer.signTransaction(transaction);
-  return { rawTransaction, signedTxHash: keccak256(rawTransaction) };
+  try {
+    const rawTransaction = await signer.signTransaction(transaction);
+    return { rawTransaction, signedTxHash: keccak256(rawTransaction) };
+  } catch {
+    throw new ClaimExecutionError("CLAIM_SIGNING_FAILED");
+  }
 }
 
 function createClaimJobId(

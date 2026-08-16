@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Added fixed-message, code-based diagnostics for guarded claim execution
+  pre-broadcast failures. Generic error messages and underlying signing/database
+  details remain hidden, while operators can safely distinguish wallet,
+  encryption-version, signing, nonce, campaign-state, and signed-evidence
+  persistence failures.
+
 - Added the Phase 5A claimant-funded claim engine with exact deployed calldata,
   comprehensive current-state preflight, encrypted User Wallet address
   validation, pending Ethereum nonce handling, and a separate false-default
