@@ -110,4 +110,20 @@ describe("migration discovery", () => {
     expect(migration).toContain("uq_campaign_execution_operations_active_type");
     expect(migration).not.toMatch(/raw_transaction|private_key|mnemonic/);
   });
+
+  it("defines idempotent claim evidence without raw transactions or keys", async () => {
+    const migration = await readFile(
+      new URL(
+        "../database/migrations/0005_create_reward_claim_jobs.sql",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+    expect(migration).toContain("CREATE TABLE reward_claim_jobs");
+    expect(migration).toContain("uq_reward_claim_jobs_authorization");
+    expect(migration).toContain("uq_reward_claim_jobs_reward_id");
+    expect(migration).toContain("signed_tx_hash");
+    expect(migration).toContain("reward_claimed_event_validated");
+    expect(migration).not.toMatch(/raw_transaction|private_key|mnemonic/);
+  });
 });

@@ -198,6 +198,22 @@ describe("loadEnvironment", () => {
     expect(loadEnvironment(requiredEnvironment).campaignExecution.executionEnabled).toBe(false);
   });
 
+  it("keeps claim execution independently disabled by default", () => {
+    const config = loadEnvironment(requiredEnvironment);
+    expect(config.claimExecution.executionEnabled).toBe(false);
+    expect(loadEnvironment({
+      ...requiredEnvironment,
+      CLAIM_EXECUTION_ENABLED: "true",
+    }).claimExecution.executionEnabled).toBe(true);
+  });
+
+  it("parses the optional maximum claim gas price", () => {
+    expect(loadEnvironment({
+      ...requiredEnvironment,
+      MAX_CLAIM_GAS_PRICE_GWEI: "3.5",
+    }).claimExecution.maxGasPriceWei).toBe(3_500_000_000n);
+  });
+
   it("rejects campaign signer keys that do not derive to fixed expected addresses", () => {
     const config = loadEnvironment({
       ...requiredEnvironment,
