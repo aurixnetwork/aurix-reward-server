@@ -37,7 +37,7 @@ await runCommand("claim:execute:test", async () => {
       token: context.token,
       wallet: publicWallet,
     });
-    return executeClaim({
+    return await executeClaim({
       authorization,
       broadcastProviders: context.providers,
       encryption: requireWalletEncryptionConfig(context.config),
