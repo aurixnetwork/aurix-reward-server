@@ -13,6 +13,7 @@ import {
   validateConfirmedClaim,
 } from "./claim-confirmation.js";
 import { ClaimExecutionError } from "./claim-execution-error.js";
+import { ClaimPersistenceError } from "./claim-persistence-error.js";
 import type { ClaimRepository } from "./claim-repository.js";
 import type {
   ClaimChainReader,
@@ -93,7 +94,8 @@ export async function executeClaim(input: ExecuteClaimInput): Promise<ClaimExecu
       txNonce,
       walletId: input.authorization.walletId,
     });
-  } catch {
+  } catch (error: unknown) {
+    if (error instanceof ClaimPersistenceError) throw error;
     throw new ClaimExecutionError("CLAIM_SIGNED_PERSIST_FAILED");
   }
 

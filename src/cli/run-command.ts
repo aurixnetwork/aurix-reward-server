@@ -6,6 +6,7 @@ import { PreflightValidationError } from "../blockchain/preflight.js";
 import { WalletValidationCommandError } from "../wallets/wallet-errors.js";
 import { AuthorizationBlockedError } from "../authorization/authorization-service.js";
 import { ClaimExecutionError } from "../claim/claim-execution-error.js";
+import { ClaimPersistenceError } from "../claim/claim-persistence-error.js";
 
 type CommandLogger = Pick<Logger, "error" | "info">;
 
@@ -41,6 +42,20 @@ export function safeErrorDetails(error: unknown): Record<string, unknown> {
   }
   if (error instanceof ClaimExecutionError) {
     return { code: error.code, message: error.message, type: error.name };
+  }
+  if (error instanceof ClaimPersistenceError) {
+    return {
+      code: error.code,
+      stage: error.stage,
+      message: error.safeMessage,
+      type: error.type,
+      ...(error.safeDbCode ? { safeDbCode: error.safeDbCode } : {}),
+      ...(error.safeDbErrno === undefined ? {} : { safeDbErrno: error.safeDbErrno }),
+      ...(error.safeDbSqlState ? { safeDbSqlState: error.safeDbSqlState } : {}),
+      ...(error.cleanupFailures.length > 0
+        ? { cleanupFailures: error.cleanupFailures }
+        : {}),
+    };
   }
   if (error instanceof Error) {
     return { type: error.name };

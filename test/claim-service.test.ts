@@ -5,6 +5,7 @@ import type { AuthorizationRepository } from "../src/authorization/authorization
 import type { AuthorizationJobRecord } from "../src/authorization/authorization-types.js";
 import { rewardClaimInterface } from "../src/claim/claim-codec.js";
 import { ClaimExecutionError } from "../src/claim/claim-execution-error.js";
+import { ClaimPersistenceError } from "../src/claim/claim-persistence-error.js";
 import type { ClaimRepository, ConfirmedClaimInput } from "../src/claim/claim-repository.js";
 import { executeClaim, reconcileClaimJobs } from "../src/claim/claim-service.js";
 import type {
@@ -236,6 +237,22 @@ describe("claim signing and execution lifecycle", () => {
     ]) {
       expect(safeOutput).not.toContain(secret);
     }
+    expect(provider.broadcastSpy).not.toHaveBeenCalled();
+  });
+
+  it("preserves safe stage-level persistence errors without broadcasting", async () => {
+    repository.insertError = new ClaimPersistenceError("INSERT_SIGNED_JOB", {
+      safeDbCode: "ER_NO_REFERENCED_ROW_2",
+      safeDbErrno: 1452,
+      safeDbSqlState: "23000",
+    });
+
+    await expect(execute()).rejects.toMatchObject({
+      code: "CLAIM_PERSIST_INSERT_FAILED",
+      safeDbCode: "ER_NO_REFERENCED_ROW_2",
+      stage: "INSERT_SIGNED_JOB",
+      type: "ClaimPersistenceError",
+    });
     expect(provider.broadcastSpy).not.toHaveBeenCalled();
   });
 

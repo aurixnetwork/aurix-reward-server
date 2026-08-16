@@ -14,6 +14,12 @@ import type {
   RewardClaimedEvent,
   SignedClaimJobInput,
 } from "./claim-types.js";
+import {
+  ClaimPersistenceError,
+  claimPersistenceError,
+  type ClaimPersistenceStage,
+  withCleanupFailure,
+} from "./claim-persistence-error.js";
 
 interface ClaimJobRow extends RowDataPacket {
   readonly amount_wei: string;
@@ -70,20 +76,6 @@ export interface ClaimRepository {
   ): Promise<void>;
 }
 
-export class DuplicateClaimJobError extends Error {
-  public constructor() {
-    super("A claim job already exists for this authorization or rewardId");
-    this.name = "DuplicateClaimJobError";
-  }
-}
-
-export class AuthorizationNotReadyForClaimError extends Error {
-  public constructor() {
-    super("The authorization is not READY for claim signing persistence");
-    this.name = "AuthorizationNotReadyForClaimError";
-  }
-}
-
 export class MySqlClaimRepository implements ClaimRepository {
   public constructor(private readonly pool: Pool) {}
 
@@ -106,9 +98,18 @@ export class MySqlClaimRepository implements ClaimRepository {
   }
 
   public async insertSigned(input: SignedClaimJobInput): Promise<void> {
-    const connection = await this.pool.getConnection();
+    let connection: PoolConnection;
+    try {
+      connection = await this.pool.getConnection();
+    } catch (error: unknown) {
+      throw claimPersistenceError("GET_CONNECTION", error);
+    }
+
+    let stage: ClaimPersistenceStage = "BEGIN_TRANSACTION";
+    let primaryError: ClaimPersistenceError | undefined;
     try {
       await connection.beginTransaction();
+      stage = "LOCK_AUTHORIZATION";
       const [authorizationRows] = await connection.execute<RowDataPacket[]>(
         `SELECT status
            FROM reward_authorization_jobs
@@ -117,8 +118,9 @@ export class MySqlClaimRepository implements ClaimRepository {
         [input.authorizationJobId],
       );
       if (authorizationRows[0]?.status !== "READY") {
-        throw new AuthorizationNotReadyForClaimError();
+        throw new ClaimPersistenceError("AUTHORIZATION_NOT_READY");
       }
+      stage = "INSERT_SIGNED_JOB";
       await connection.execute(
         `INSERT INTO reward_claim_jobs
           (job_id, authorization_job_id, wallet_id, claimant_address,
@@ -146,14 +148,25 @@ export class MySqlClaimRepository implements ClaimRepository {
           input.campaignDistributedBefore.toString(),
         ],
       );
+      stage = "COMMIT";
       await connection.commit();
     } catch (error: unknown) {
-      await connection.rollback();
-      if (isDuplicateEntryError(error)) throw new DuplicateClaimJobError();
-      throw error;
+      primaryError = claimPersistenceError(stage, error);
+      try {
+        await connection.rollback();
+      } catch (rollbackError: unknown) {
+        primaryError = withCleanupFailure(primaryError, "ROLLBACK", rollbackError);
+      }
     } finally {
-      connection.release();
+      try {
+        connection.release();
+      } catch (releaseError: unknown) {
+        primaryError = primaryError
+          ? withCleanupFailure(primaryError, "RELEASE", releaseError)
+          : claimPersistenceError("RELEASE", releaseError);
+      }
     }
+    if (primaryError) throw primaryError;
   }
 
   public async listUnresolved(): Promise<readonly ClaimJobRecord[]> {
@@ -421,8 +434,4 @@ function restoreEvent(event: ReturnType<typeof safeEvent>): RewardClaimedEvent {
     logIndex: event.logIndex,
     rewardId: event.rewardId,
   };
-}
-
-function isDuplicateEntryError(error: unknown): boolean {
-  return typeof error === "object" && error !== null && "code" in error && error.code === "ER_DUP_ENTRY";
 }

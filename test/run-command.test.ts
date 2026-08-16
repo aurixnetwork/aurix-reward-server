@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ClaimExecutionError } from "../src/claim/claim-execution-error.js";
+import { ClaimPersistenceError } from "../src/claim/claim-persistence-error.js";
 import { runCommand } from "../src/cli/run-command.js";
 
 const originalExitCode = process.exitCode;
@@ -42,6 +43,49 @@ describe("safe command error logging", () => {
     expect(output).toContain('"type":"Error"');
     expect(output).not.toContain("driver failed");
     expect(output).not.toContain(secret);
+  });
+
+  it("logs only allowlisted persistence diagnostics", async () => {
+    const logger = fakeLogger();
+    await runCommand(
+      "claim:execute:test",
+      () => Promise.reject(new ClaimPersistenceError("COMMIT", {
+        safeDbCode: "ER_QUERY_INTERRUPTED",
+        safeDbErrno: 1317,
+        safeDbSqlState: "70100",
+      })),
+      logger,
+    );
+    expect(logger.errorSpy).toHaveBeenCalledWith(
+      {
+        command: "claim:execute:test",
+        error: {
+          code: "CLAIM_PERSIST_COMMIT_FAILED",
+          message: "Claim persistence transaction could not be committed",
+          safeDbCode: "ER_QUERY_INTERRUPTED",
+          safeDbErrno: 1317,
+          safeDbSqlState: "70100",
+          stage: "COMMIT",
+          type: "ClaimPersistenceError",
+        },
+      },
+      "claim:execute:test failed",
+    );
+  });
+
+  it("rejects unsafe database metadata even when passed to the safe error constructor", () => {
+    const secret = "private-key-in-forged-db-code";
+    const error = new ClaimPersistenceError("INSERT_SIGNED_JOB", {
+      safeDbCode: secret,
+      safeDbErrno: Number.NaN,
+      safeDbSqlState: secret,
+    });
+
+    const details = JSON.stringify(error);
+    expect(details).not.toContain(secret);
+    expect(error.safeDbCode).toBeUndefined();
+    expect(error.safeDbErrno).toBeUndefined();
+    expect(error.safeDbSqlState).toBeUndefined();
   });
 
   it("does not accept a caller-provided unsafe message for Claim errors", () => {
