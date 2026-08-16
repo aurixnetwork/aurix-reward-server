@@ -30,7 +30,11 @@
     "campaign:status:test": "tsx src/cli/campaign-status.ts",
     "authorization:plan:test": "tsx src/cli/plan-authorization.ts",
     "authorization:create:test": "tsx src/cli/create-authorization.ts",
-    "authorization:verify:test": "tsx src/cli/verify-authorization.ts"
+    "authorization:verify:test": "tsx src/cli/verify-authorization.ts",
+    "claim:plan:test": "tsx src/cli/plan-claim.ts",
+    "claim:execute:test": "tsx src/cli/execute-claim.ts",
+    "claim:status:test": "tsx src/cli/claim-status.ts",
+    "claim:reconcile:test": "tsx src/cli/reconcile-claim.ts"
   },
   "dependencies": {
     "dotenv": "17.4.2",

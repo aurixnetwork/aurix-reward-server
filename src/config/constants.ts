@@ -34,4 +34,5 @@ export const DEFAULT_TEST_WALLET_COUNT = 10;
 export const MAX_TEST_WALLET_COUNT = 100;
 
 export const FUNDING_GAS_LIMIT_SAFETY_BPS = 1_000;
+export const CLAIM_GAS_LIMIT_SAFETY_BPS = 2_000;
 export const BASIS_POINTS = 10_000;

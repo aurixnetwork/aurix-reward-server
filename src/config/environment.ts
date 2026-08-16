@@ -121,6 +121,8 @@ const environmentSchema = z
     APPROVER_PRIVATE_KEY: optionalNonEmptyString,
     APPROVER_ADDRESS: optionalNonEmptyString,
     AUTHORIZATION_VALIDITY_SECONDS: optionalPositiveSafeInteger,
+    MAX_CLAIM_GAS_PRICE_GWEI: optionalNonEmptyString,
+    CLAIM_EXECUTION_ENABLED: optionalBoolean.default(false),
   })
   .superRefine((value, context) => {
     if (value.BSC_TESTNET_CHAIN_ID !== BSC_TESTNET_CHAIN_ID) {
@@ -235,6 +237,7 @@ const environmentSchema = z
       ["TEST_WALLET_TARGET_TBNB", value.TEST_WALLET_TARGET_TBNB],
       ["MAX_FUNDING_GAS_PRICE_GWEI", value.MAX_FUNDING_GAS_PRICE_GWEI],
       ["MAX_CAMPAIGN_GAS_PRICE_GWEI", value.MAX_CAMPAIGN_GAS_PRICE_GWEI],
+      ["MAX_CLAIM_GAS_PRICE_GWEI", value.MAX_CLAIM_GAS_PRICE_GWEI],
     ] as const) {
       if (amount) {
         try {
@@ -305,6 +308,12 @@ export interface AppConfig {
   readonly funding: FundingEnvironmentConfig;
   readonly authorization: AuthorizationEnvironmentConfig;
   readonly campaignExecution: CampaignExecutionEnvironmentConfig;
+  readonly claimExecution: ClaimExecutionEnvironmentConfig;
+}
+
+export interface ClaimExecutionEnvironmentConfig {
+  readonly executionEnabled: boolean;
+  readonly maxGasPriceWei: bigint | undefined;
 }
 
 export interface AuthorizationEnvironmentConfig {
@@ -452,6 +461,15 @@ export function loadEnvironment(source: NodeJS.ProcessEnv = process.env): AppCon
         : undefined,
       operationsExpectedAddress: getAddress(value.OPERATIONS_ADDRESS),
       operationsPrivateKey: value.OPERATIONS_PRIVATE_KEY,
+    },
+    claimExecution: {
+      executionEnabled: value.CLAIM_EXECUTION_ENABLED,
+      maxGasPriceWei: value.MAX_CLAIM_GAS_PRICE_GWEI
+        ? parsePositiveGweiAmount(
+            value.MAX_CLAIM_GAS_PRICE_GWEI,
+            "MAX_CLAIM_GAS_PRICE_GWEI",
+          )
+        : undefined,
     },
   };
 }

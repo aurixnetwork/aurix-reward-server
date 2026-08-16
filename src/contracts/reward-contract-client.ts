@@ -133,6 +133,10 @@ export class RewardContractClient {
     ) as Promise<bigint>;
   }
 
+  public async getRewardToken(): Promise<string> {
+    return getAddress(await this.contract.getFunction("rewardToken")() as string);
+  }
+
   public async isRewardIdUsed(rewardId: string): Promise<boolean> {
     return this.contract.getFunction("usedRewardIds")(rewardId) as Promise<boolean>;
   }
