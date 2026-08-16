@@ -59,6 +59,12 @@ An authorization is prepared only after all of these checks succeed:
 Signing failures leave an explicit `FAILED` record. A `READY` record can later
 be independently verified as valid, expired, stale because the contract nonce
 changed, malformed, signed by the wrong address, or missing the required role.
+Verification is strictly read-only: observing `EXPIRED` never changes the row.
+The explicit `authorization:create:test` lifecycle operation may retire a
+`READY` row only when trusted time is greater than its deadline and all
+reissuance checks below pass. Retirement sets `status = EXPIRED` and
+`expired_at` while preserving reward ID, nonce, validity window, typed-data
+hash, Approver address, and signature as audit evidence.
 `CONSUMED` is set only after Phase 5 has a successful receipt, an exact matching
 `RewardClaimed` event, and all required post-state evidence. Signing or
 broadcasting alone never consumes the database authorization.
@@ -72,9 +78,22 @@ creating the job.
 
 Each `rewardId` is the keccak256 hash of the campaign, claimant, current
 contract reward nonce, UUID job identity, and 32 bytes of cryptographically
-secure entropy. The database uniquely constrains both `reward_id` and
-`campaign_id + claimant_address + reward_nonce`; the create path also checks the
-contract's `usedRewardIds` mapping.
+secure entropy. The database always uniquely constrains `reward_id`. For
+contract-nonce identity it uses a nullable generated `active_nonce_guard`:
+`PLANNED`, `SIGNED`, and `READY` generate `1`, while terminal states generate
+`NULL`. The unique key on campaign, claimant, reward nonce, and this guard
+permits historical terminal rows but at most one active row for a tuple.
+
+An expired authorization may be replaced using the same on-chain `rewardNonce`
+only when the nonce is still current, its old reward ID is unused, and it has no
+unresolved `SIGNED`, `BROADCAST`, or `PENDING_REVIEW` claim. The create operation
+locks the active authorization row, repeats those chain checks, transitions it
+to `EXPIRED`, and inserts the fresh `PLANNED` row in one database transaction.
+The new row always receives a new UUID job ID, new reward ID, and new validity
+window. Database active-only uniqueness remains the final concurrent-worker
+guard. An advanced nonce or used reward ID blocks blind reissuance; an
+unresolved claim returns
+`AUTHORIZATION_REISSUE_REQUIRES_CLAIM_RECONCILIATION`.
 
 ## Time and amount policy
 
@@ -107,11 +126,15 @@ npm run authorization:verify:test -- --job-id <uuid>
 npm run claim:plan:test -- --authorization-job-id <uuid>
 ```
 
-Campaign inspection and authorization planning are read-only. Planning does not
-write a job and its preview `rewardId` is not reserved. Creation signs and
-persists only after all live checks pass. Verification reconstructs the typed
-data independently and performs only contract reads. Every command reports
-`transactionsSent: 0`.
+Campaign inspection, authorization planning, and verification are read-only.
+Planning does not write a job and its preview `rewardId` is not reserved.
+Creation signs and persists only after all live checks pass. Creation is the
+explicit database lifecycle operation and may atomically expire a
+safe-to-reissue historical row; it never sends a blockchain transaction.
+When replacement occurs, its result includes
+`reissuedFromAuthorizationJobId` for operator-visible audit linkage.
+Verification reconstructs the typed data independently and performs only
+contract reads. Every command reports `transactionsSent: 0`.
 
 If there is no valid on-chain Testnet campaign, planning returns
 `BLOCKED_CAMPAIGN_NOT_FOUND`; no campaign is fabricated or created.

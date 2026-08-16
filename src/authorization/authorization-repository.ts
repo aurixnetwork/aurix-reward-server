@@ -1,5 +1,10 @@
 import { getAddress } from "ethers";
-import type { Pool, ResultSetHeader, RowDataPacket } from "mysql2/promise";
+import type {
+  Pool,
+  PoolConnection,
+  ResultSetHeader,
+  RowDataPacket,
+} from "mysql2/promise";
 
 import type {
   AuthorizationJobRecord,
@@ -14,6 +19,7 @@ interface AuthorizationRow extends RowDataPacket {
   readonly campaign_id: string;
   readonly claimant_address: string;
   readonly deadline: number | string;
+  readonly expired_at: Date | null;
   readonly job_id: string;
   readonly reward_id: string;
   readonly reward_nonce: string;
@@ -25,15 +31,41 @@ interface AuthorizationRow extends RowDataPacket {
 
 export interface AuthorizationRepository {
   findByJobId(jobId: string): Promise<AuthorizationJobRecord | undefined>;
-  insertPlanned(input: PlannedAuthorizationInput): Promise<void>;
+  reservePlanned(
+    input: PlannedAuthorizationInput,
+    nowSeconds: bigint,
+    validateExpired: ExpiredAuthorizationValidator,
+  ): Promise<AuthorizationReservationResult>;
   markFailed(jobId: string, code: string, message: string): Promise<void>;
   markReady(jobId: string, typedDataHash: string, signature: string): Promise<void>;
+}
+
+export type ExpiredAuthorizationValidator = (
+  authorization: AuthorizationJobRecord,
+) => Promise<void>;
+
+export interface AuthorizationReservationResult {
+  readonly expiredAuthorizationJobId?: string;
 }
 
 export class DuplicateAuthorizationError extends Error {
   public constructor() {
     super("Authorization job conflicts with an existing job, rewardId, or contract nonce");
     this.name = "DuplicateAuthorizationError";
+  }
+}
+
+export class ActiveAuthorizationExistsError extends Error {
+  public constructor(public readonly authorizationJobId: string) {
+    super("An active authorization already exists for this contract reward nonce");
+    this.name = "ActiveAuthorizationExistsError";
+  }
+}
+
+export class AuthorizationReissueRequiresClaimReconciliationError extends Error {
+  public constructor(public readonly authorizationJobId: string) {
+    super("The expired authorization has an unresolved claim job");
+    this.name = "AuthorizationReissueRequiresClaimReconciliationError";
   }
 }
 
@@ -51,30 +83,62 @@ export class MySqlAuthorizationRepository implements AuthorizationRepository {
     return row ? mapRow(row) : undefined;
   }
 
-  public async insertPlanned(input: PlannedAuthorizationInput): Promise<void> {
+  public async reservePlanned(
+    input: PlannedAuthorizationInput,
+    nowSeconds: bigint,
+    validateExpired: ExpiredAuthorizationValidator,
+  ): Promise<AuthorizationReservationResult> {
+    const connection = await this.pool.getConnection();
     try {
-      await this.pool.execute(
-        `INSERT INTO reward_authorization_jobs
-          (job_id, wallet_id, claimant_address, campaign_id, reward_id,
-           reward_nonce, amount_wei, valid_after, deadline,
-           approver_address, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PLANNED')`,
+      await connection.beginTransaction();
+      const [rows] = await connection.execute<AuthorizationRow[]>(
+        `${selectColumns()}
+          WHERE campaign_id = ? AND claimant_address = ? AND reward_nonce = ?
+            AND active_nonce_guard = 1
+          LIMIT 1 FOR UPDATE`,
         [
-          input.jobId,
-          input.walletId,
-          getAddress(input.claimant),
           input.campaignId,
-          input.rewardId,
+          getAddress(input.claimant),
           input.rewardNonce.toString(),
-          input.amount.toString(),
-          input.validAfter.toString(),
-          input.deadline.toString(),
-          getAddress(input.approverAddress),
         ],
       );
+      const active = rows[0] ? mapRow(rows[0]) : undefined;
+      if (active && nowSeconds <= active.deadline) {
+        throw new ActiveAuthorizationExistsError(active.jobId);
+      }
+
+      if (active) {
+        const [claimRows] = await connection.execute<RowDataPacket[]>(
+          `SELECT job_id
+             FROM reward_claim_jobs
+            WHERE authorization_job_id = ?
+              AND status IN ('SIGNED','BROADCAST','PENDING_REVIEW')
+            LIMIT 1 FOR UPDATE`,
+          [active.jobId],
+        );
+        if (claimRows.length > 0) {
+          throw new AuthorizationReissueRequiresClaimReconciliationError(active.jobId);
+        }
+        await validateExpired(active);
+        await updateExactlyOne(
+          connection,
+          `UPDATE reward_authorization_jobs
+              SET status = 'EXPIRED', expired_at = CURRENT_TIMESTAMP(6)
+            WHERE job_id = ? AND status IN ('PLANNED','SIGNED','READY')
+              AND deadline < ?`,
+          [active.jobId, nowSeconds.toString()],
+        );
+      }
+
+      await insertPlanned(connection, input);
+      await connection.commit();
+      return active ? { expiredAuthorizationJobId: active.jobId } : {};
     } catch (error: unknown) {
+      await connection.rollback();
       if (isDuplicateEntryError(error)) throw new DuplicateAuthorizationError();
       throw error;
+    } finally {
+      connection.release();
     }
   }
 
@@ -108,7 +172,8 @@ export class MySqlAuthorizationRepository implements AuthorizationRepository {
 function selectColumns(): string {
   return `SELECT job_id, wallet_id, claimant_address, campaign_id, reward_id,
                  reward_nonce, amount_wei, valid_after, deadline,
-                 approver_address, typed_data_hash, approver_signature, status
+                 approver_address, typed_data_hash, approver_signature, status,
+                 expired_at
             FROM reward_authorization_jobs`;
 }
 
@@ -120,6 +185,7 @@ function mapRow(row: AuthorizationRow): AuthorizationJobRecord {
     campaignId: row.campaign_id,
     claimant: getAddress(row.claimant_address),
     deadline: BigInt(row.deadline),
+    ...(row.expired_at ? { expiredAt: row.expired_at } : {}),
     jobId: row.job_id,
     rewardId: row.reward_id,
     rewardNonce: BigInt(row.reward_nonce),
@@ -131,14 +197,39 @@ function mapRow(row: AuthorizationRow): AuthorizationJobRecord {
 }
 
 async function updateExactlyOne(
-  pool: Pool,
+  executor: Pick<Pool | PoolConnection, "execute">,
   sql: string,
   values: string[],
 ): Promise<void> {
-  const [result] = await pool.execute<ResultSetHeader>(sql, values);
+  const [result] = await executor.execute<ResultSetHeader>(sql, values);
   if (result.affectedRows !== 1) {
     throw new Error("Authorization job update did not affect exactly one row");
   }
+}
+
+async function insertPlanned(
+  executor: Pick<Pool | PoolConnection, "execute">,
+  input: PlannedAuthorizationInput,
+): Promise<void> {
+  await executor.execute(
+    `INSERT INTO reward_authorization_jobs
+      (job_id, wallet_id, claimant_address, campaign_id, reward_id,
+       reward_nonce, amount_wei, valid_after, deadline,
+       approver_address, status)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PLANNED')`,
+    [
+      input.jobId,
+      input.walletId,
+      getAddress(input.claimant),
+      input.campaignId,
+      input.rewardId,
+      input.rewardNonce.toString(),
+      input.amount.toString(),
+      input.validAfter.toString(),
+      input.deadline.toString(),
+      getAddress(input.approverAddress),
+    ],
+  );
 }
 
 function isDuplicateEntryError(error: unknown): boolean {

@@ -22,10 +22,15 @@ export type AuthorizationJobStatus =
 export interface AuthorizationJobRecord extends RewardAuthorization {
   readonly approverAddress: string;
   readonly approverSignature?: string;
+  readonly expiredAt?: Date;
   readonly jobId: string;
   readonly status: AuthorizationJobStatus;
   readonly typedDataHash?: string;
   readonly walletId: string;
+}
+
+export interface CreatedAuthorizationJobRecord extends AuthorizationJobRecord {
+  readonly reissuedFromAuthorizationJobId?: string;
 }
 
 export interface PlannedAuthorizationInput extends RewardAuthorization {

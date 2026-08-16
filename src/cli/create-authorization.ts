@@ -32,6 +32,9 @@ await runCommand("authorization:create:test", async () => {
     return {
       approverAddress: job.approverAddress,
       jobId: job.jobId,
+      ...(job.reissuedFromAuthorizationJobId
+        ? { reissuedFromAuthorizationJobId: job.reissuedFromAuthorizationJobId }
+        : {}),
       rewardId: job.rewardId,
       status: job.status,
       typedDataHash: job.typedDataHash,

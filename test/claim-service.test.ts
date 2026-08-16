@@ -294,7 +294,7 @@ describe("claim signing and execution lifecycle", () => {
     provider.broadcastSpy.mockClear();
     const authorizationRepository: AuthorizationRepository = {
       findByJobId: vi.fn().mockResolvedValue(authorization),
-      insertPlanned: vi.fn(),
+      reservePlanned: vi.fn(),
       markFailed: vi.fn(),
       markReady: vi.fn(),
     };

@@ -2,6 +2,7 @@ import type { Pool } from "mysql2/promise";
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  AuthorizationNotReadyForClaimError,
   DuplicateClaimJobError,
   MySqlClaimRepository,
 } from "../src/claim/claim-repository.js";
@@ -26,18 +27,39 @@ const input = {
 
 describe("claim repository", () => {
   it("prevents duplicate claim jobs by authorization and rewardId", async () => {
-    const pool = { execute: vi.fn().mockRejectedValue({ code: "ER_DUP_ENTRY" }) } as unknown as Pool;
+    const connection = claimInsertConnection();
+    connection.execute
+      .mockResolvedValueOnce([[{ status: "READY" }], []])
+      .mockRejectedValueOnce({ code: "ER_DUP_ENTRY" });
+    const pool = { getConnection: vi.fn().mockResolvedValue(connection) } as unknown as Pool;
     await expect(new MySqlClaimRepository(pool).insertSigned(input))
       .rejects.toBeInstanceOf(DuplicateClaimJobError);
+    expect(connection.rollback).toHaveBeenCalledOnce();
   });
 
   it("persists SIGNED and its hash without raw transaction bytes", async () => {
-    const execute = vi.fn().mockResolvedValue([{ affectedRows: 1 }, []]);
-    await new MySqlClaimRepository({ execute } as unknown as Pool).insertSigned(input);
-    const sql = String(execute.mock.calls[0]?.[0]);
+    const connection = claimInsertConnection();
+    connection.execute
+      .mockResolvedValueOnce([[{ status: "READY" }], []])
+      .mockResolvedValueOnce([{ affectedRows: 1 }, []]);
+    const pool = { getConnection: vi.fn().mockResolvedValue(connection) } as unknown as Pool;
+    await new MySqlClaimRepository(pool).insertSigned(input);
+    const sql = String(connection.execute.mock.calls[1]?.[0]);
     expect(sql).toContain("'SIGNED'");
-    expect(execute.mock.calls[0]?.[1]).toContain(input.signedTxHash);
+    expect(connection.execute.mock.calls[1]?.[1]).toContain(input.signedTxHash);
     expect(sql).not.toMatch(/raw_transaction|private_key/);
+    expect(String(connection.execute.mock.calls[0]?.[0])).toContain("FOR UPDATE");
+    expect(connection.commit).toHaveBeenCalledOnce();
+  });
+
+  it("cannot persist SIGNED after the authorization is no longer READY", async () => {
+    const connection = claimInsertConnection();
+    connection.execute.mockResolvedValueOnce([[{ status: "EXPIRED" }], []]);
+    const pool = { getConnection: vi.fn().mockResolvedValue(connection) } as unknown as Pool;
+    await expect(new MySqlClaimRepository(pool).insertSigned(input))
+      .rejects.toBeInstanceOf(AuthorizationNotReadyForClaimError);
+    expect(connection.execute).toHaveBeenCalledOnce();
+    expect(connection.rollback).toHaveBeenCalledOnce();
   });
 
   it("selects only unresolved jobs for reconciliation", async () => {
@@ -78,3 +100,13 @@ describe("claim repository", () => {
     expect(connection.commit).toHaveBeenCalledOnce();
   });
 });
+
+function claimInsertConnection() {
+  return {
+    beginTransaction: vi.fn(),
+    commit: vi.fn(),
+    execute: vi.fn(),
+    release: vi.fn(),
+    rollback: vi.fn(),
+  };
+}

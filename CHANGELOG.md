@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Added safe expired-authorization retirement and same-contract-rewardNonce
+  reissuance with preserved signature history, fresh job/reward IDs, explicit
+  chain/reward-ID checks, and unresolved-claim reconciliation blockers.
+- Added migration `0006` with an active-only generated uniqueness guard and
+  transactional row locking shared by authorization replacement and claim
+  `SIGNED` persistence.
+
 - Added fixed-message, code-based diagnostics for guarded claim execution
   pre-broadcast failures. Generic error messages and underlying signing/database
   details remain hidden, while operators can safely distinguish wallet,

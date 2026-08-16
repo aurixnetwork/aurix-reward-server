@@ -24,6 +24,10 @@ Phase 5A adds exact claimant-signed `claimReward` planning, encrypted User
 Wallet signing scope, signed-hash-before-broadcast evidence, exact confirmation,
 and restart reconciliation. Its broadcast path has a separate false-by-default
 guard. Phase 5A implementation and validation send zero transactions.
+Expired authorization history is preserved. The explicit authorization create
+operation can atomically retire a safely expired active row and issue fresh
+EIP-712 evidence for the same unchanged contract `rewardNonce`, always with new
+job and reward IDs. Unresolved claims require reconciliation first.
 
 ## Fixed environment
 
@@ -97,6 +101,11 @@ their derived ethers addresses without exposing key material.
 ## Architecture
 
 The server verifies off-chain eligibility, creates an EIP-712 Approver authorization, and signs the final `claimReward()` transaction using the User Wallet.
+
+Authorization verification is read-only. Authorization creation is an explicit
+database lifecycle operation: active nonce uniqueness is database-enforced,
+and safe expiration plus fresh `PLANNED` insertion is transactional. It sends no
+blockchain transaction.
 
 The User Wallet is the transaction sender, gas payer, and reward recipient.
 

@@ -7,12 +7,18 @@ import type { PublicWalletRecord } from "../wallets/wallet-types.js";
 import {
   createAuthorizationWindow,
 } from "./authorization-policy.js";
-import type { AuthorizationRepository } from "./authorization-repository.js";
+import {
+  ActiveAuthorizationExistsError,
+  AuthorizationReissueRequiresClaimReconciliationError,
+  DuplicateAuthorizationError,
+  type AuthorizationRepository,
+} from "./authorization-repository.js";
 import type {
   AuthorizationJobRecord,
   AuthorizationPlanResult,
   AuthorizationVerificationResult,
   CampaignAuthorizationReader,
+  CreatedAuthorizationJobRecord,
   RewardAuthorization,
   RewardEligibilityService,
 } from "./authorization-types.js";
@@ -141,7 +147,7 @@ export async function planRewardAuthorization(
 
 export async function createAndSignRewardAuthorization(
   input: CreateAuthorizationInput,
-): Promise<AuthorizationJobRecord> {
+): Promise<CreatedAuthorizationJobRecord> {
   const jobId = input.jobId ?? createAuthorizationJobId();
   const plan = await planRewardAuthorization({
     amount: input.amount,
@@ -179,12 +185,57 @@ export async function createAndSignRewardAuthorization(
     );
   }
   const authorization = { ...plan.authorization, rewardId };
-  await input.repository.insertPlanned({
-    ...authorization,
-    approverAddress: input.approverAddress,
-    jobId,
-    walletId: input.wallet.id,
-  });
+  let reissuedFromAuthorizationJobId: string | undefined;
+  try {
+    const reservation = await input.repository.reservePlanned(
+      {
+        ...authorization,
+        approverAddress: input.approverAddress,
+        jobId,
+        walletId: input.wallet.id,
+      },
+      BigInt(input.nowSeconds),
+      async (expired) => {
+        const [lockedRewardNonce, oldRewardIdUsed] = await Promise.all([
+          input.reader.getRewardNonce(expired.campaignId, expired.claimant),
+          input.reader.isRewardIdUsed(expired.rewardId),
+        ]);
+        if (lockedRewardNonce !== expired.rewardNonce) {
+          throw new AuthorizationBlockedError(
+            "AUTHORIZATION_REISSUE_REWARD_NONCE_ADVANCED",
+            "Contract rewardNonce advanced before the expired authorization could be retired",
+          );
+        }
+        if (oldRewardIdUsed) {
+          throw new AuthorizationBlockedError(
+            "AUTHORIZATION_REISSUE_REWARD_ID_USED",
+            "Expired authorization rewardId is already used and requires reconciliation",
+          );
+        }
+      },
+    );
+    reissuedFromAuthorizationJobId = reservation.expiredAuthorizationJobId;
+  } catch (error: unknown) {
+    if (error instanceof ActiveAuthorizationExistsError) {
+      throw new AuthorizationBlockedError(
+        "ACTIVE_AUTHORIZATION_EXISTS",
+        "A still-valid active authorization already exists for this contract rewardNonce",
+      );
+    }
+    if (error instanceof AuthorizationReissueRequiresClaimReconciliationError) {
+      throw new AuthorizationBlockedError(
+        "AUTHORIZATION_REISSUE_REQUIRES_CLAIM_RECONCILIATION",
+        "Expired authorization has an unresolved claim job that must be reconciled first",
+      );
+    }
+    if (error instanceof DuplicateAuthorizationError) {
+      throw new AuthorizationBlockedError(
+        "ACTIVE_AUTHORIZATION_CONCURRENCY_CONFLICT",
+        "Another worker reserved an active authorization for this contract rewardNonce",
+      );
+    }
+    throw error;
+  }
 
   try {
     const onChainTypeHash = await input.reader.getAuthorizationTypeHash();
@@ -213,6 +264,7 @@ export async function createAndSignRewardAuthorization(
       approverAddress: input.approverAddress,
       approverSignature: signature,
       jobId,
+      ...(reissuedFromAuthorizationJobId ? { reissuedFromAuthorizationJobId } : {}),
       status: "READY",
       typedDataHash,
       walletId: input.wallet.id,
@@ -274,7 +326,7 @@ export async function verifyPersistedAuthorization(
   if (!await reader.hasApproverRole(expectedApprover)) {
     return { ...base, recoveredSigner, status: "APPROVER_ROLE_MISSING" };
   }
-  if (job.deadline <= BigInt(nowSeconds)) {
+  if (job.deadline < BigInt(nowSeconds)) {
     return { ...base, recoveredSigner, status: "EXPIRED" };
   }
   if (currentRewardNonce !== job.rewardNonce) {

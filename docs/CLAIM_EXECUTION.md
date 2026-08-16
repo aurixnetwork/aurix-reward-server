@@ -140,6 +140,14 @@ database and `usedRewardIds` before signing. `SIGNED`, `BROADCAST`, or
 Ethereum nonce. A confirmed job returns `SKIP_ALREADY_CONFIRMED`. An on-chain
 used reward ID routes to reconciliation rather than resend.
 
+Claim `SIGNED` persistence locks the exact authorization row and requires it to
+remain `READY`. Authorization expiration/reissuance takes the same row lock and
+checks unresolved claims inside its transaction. Thus a claim cannot become
+unresolved between the reissuance check and expiration. A fresh authorization
+for the same contract reward nonce has a new authorization job ID and reward ID,
+so existing claim uniqueness and confirmation consumption remain scoped to the
+exact authorization used.
+
 The crash-safe lifecycle is:
 
 1. complete current preflight;
@@ -195,10 +203,11 @@ error.
 Only exact confirmed-claim persistence changes an authorization from `READY` to
 `CONSUMED`, in the same database transaction as the claim confirmation. Signing,
 broadcast, timeout, or a successful receipt with invalid evidence is not enough.
-A reverted claim leaves the authorization `READY`, but the terminal failed claim
-job blocks automatic reuse; an operator must review current deadline, reward ID,
-reward nonce, transaction nonce, and chain evidence before any future policy
-allows another attempt.
+A reverted claim leaves the authorization `READY`. Before its deadline, that
+active row still blocks duplicate issuance. After its deadline, the explicit
+authorization lifecycle may replace it only when the contract nonce is still
+unchanged, the old reward ID remains unused, and no unresolved claim exists;
+otherwise reconciliation or operator review remains mandatory.
 
 ## Commands
 

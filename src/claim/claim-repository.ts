@@ -77,6 +77,13 @@ export class DuplicateClaimJobError extends Error {
   }
 }
 
+export class AuthorizationNotReadyForClaimError extends Error {
+  public constructor() {
+    super("The authorization is not READY for claim signing persistence");
+    this.name = "AuthorizationNotReadyForClaimError";
+  }
+}
+
 export class MySqlClaimRepository implements ClaimRepository {
   public constructor(private readonly pool: Pool) {}
 
@@ -99,8 +106,20 @@ export class MySqlClaimRepository implements ClaimRepository {
   }
 
   public async insertSigned(input: SignedClaimJobInput): Promise<void> {
+    const connection = await this.pool.getConnection();
     try {
-      await this.pool.execute(
+      await connection.beginTransaction();
+      const [authorizationRows] = await connection.execute<RowDataPacket[]>(
+        `SELECT status
+           FROM reward_authorization_jobs
+          WHERE job_id = ?
+          LIMIT 1 FOR UPDATE`,
+        [input.authorizationJobId],
+      );
+      if (authorizationRows[0]?.status !== "READY") {
+        throw new AuthorizationNotReadyForClaimError();
+      }
+      await connection.execute(
         `INSERT INTO reward_claim_jobs
           (job_id, authorization_job_id, wallet_id, claimant_address,
            campaign_id, reward_id, reward_nonce, amount_wei, tx_nonce,
@@ -127,9 +146,13 @@ export class MySqlClaimRepository implements ClaimRepository {
           input.campaignDistributedBefore.toString(),
         ],
       );
+      await connection.commit();
     } catch (error: unknown) {
+      await connection.rollback();
       if (isDuplicateEntryError(error)) throw new DuplicateClaimJobError();
       throw error;
+    } finally {
+      connection.release();
     }
   }
 

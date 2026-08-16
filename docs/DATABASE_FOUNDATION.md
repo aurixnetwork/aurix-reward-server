@@ -69,8 +69,8 @@ signature, explicit lifecycle status/error fields, and timestamps.
 
 Potential uint256 values use 78-character ASCII decimal strings and are mapped
 to application `bigint`; no floating-point column is used. Unix timestamps use
-unsigned `BIGINT`. Unique keys enforce `job_id`, `reward_id`, and
-`campaign_id + claimant_address + reward_nonce`. Indexes support wallet,
+unsigned `BIGINT`. Migration `0003` initially enforces unique `job_id`,
+`reward_id`, and campaign/claimant/reward-nonce tuples. Indexes support wallet,
 campaign, and status inspection. The User Wallet foreign key preserves wallet
 identity.
 
@@ -79,6 +79,22 @@ or `FAILED` on signing/Approver verification failure. `SIGNED`, `EXPIRED`,
 `CANCELLED`, and `CONSUMED` are explicit lifecycle states reserved for recovery
 and later claim processing. No private key, mnemonic, encryption key, or raw
 transaction is stored.
+
+## Expired authorization history
+
+Migration `0006_allow_historical_authorization_nonces.sql` replaces the
+unconditional tuple index from `0003` without editing historical migrations. It
+adds `expired_at` and the MariaDB 10.11-compatible `STORED` generated column
+`active_nonce_guard`. The column is `1` for `PLANNED`, `SIGNED`, and `READY`, and
+`NULL` for terminal states. A unique index on campaign, claimant, reward nonce,
+and the guard allows multiple `EXPIRED`, `CANCELLED`, `FAILED`, or `CONSUMED`
+audit rows while permitting only one active authorization.
+
+Expiration and new `PLANNED` insertion run in one transaction under an active
+authorization row lock. The repository also locks that authorization before a
+claim job can become `SIGNED`, so expiration cannot race past an unresolved
+claim. The generated unique index is the final protection when concurrent
+workers find no active row.
 
 ## Phase 4B-2 campaign execution evidence
 

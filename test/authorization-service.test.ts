@@ -3,6 +3,10 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { AuthorizationRepository } from "../src/authorization/authorization-repository.js";
 import {
+  ActiveAuthorizationExistsError,
+  AuthorizationReissueRequiresClaimReconciliationError,
+} from "../src/authorization/authorization-repository.js";
+import {
   createAndSignRewardAuthorization,
   planRewardAuthorization,
   verifyPersistedAuthorization,
@@ -58,6 +62,7 @@ function reader(options: {
   const getRewardNonceSpy = vi.fn().mockResolvedValue(options.claimant?.rewardNonce ?? 7n);
   const getClaimantStateSpy = vi.fn().mockResolvedValue(options.claimant ?? claimantState);
   const hasApproverRoleSpy = vi.fn().mockResolvedValue(options.role ?? true);
+  const isRewardIdUsedSpy = vi.fn().mockResolvedValue(false);
   return {
     getAuthorizationTypeHash: vi.fn().mockResolvedValue(id(REWARD_AUTHORIZATION_TYPE_STRING)),
     getCampaign: vi.fn().mockResolvedValue(options.campaign ?? activeCampaign),
@@ -68,27 +73,48 @@ function reader(options: {
     hasApproverRole: hasApproverRoleSpy,
     hasApproverRoleSpy,
     isPaused: vi.fn().mockResolvedValue(options.paused ?? false),
-    isRewardIdUsed: vi.fn().mockResolvedValue(false),
+    isRewardIdUsed: isRewardIdUsedSpy,
+    isRewardIdUsedSpy,
   } as unknown as CampaignAuthorizationReader & {
     readonly getRewardNonceSpy: ReturnType<typeof vi.fn>;
     readonly getClaimantStateSpy: ReturnType<typeof vi.fn>;
     readonly hasApproverRoleSpy: ReturnType<typeof vi.fn>;
+    readonly isRewardIdUsedSpy: ReturnType<typeof vi.fn>;
   };
 }
 
 class FakeAuthorizationRepository implements AuthorizationRepository {
   public readonly events: string[] = [];
+  public active?: AuthorizationJobRecord;
+  public expired?: AuthorizationJobRecord;
   public planned?: PlannedAuthorizationInput;
+  public reserveError?: Error;
   public hash?: string;
   public signature?: string;
 
   public findByJobId(): Promise<AuthorizationJobRecord | undefined> {
     return Promise.resolve(undefined);
   }
-  public insertPlanned(input: PlannedAuthorizationInput): Promise<void> {
+  private insertPlanned(input: PlannedAuthorizationInput): Promise<void> {
     this.events.push("PLANNED");
     this.planned = input;
     return Promise.resolve();
+  }
+  public async reservePlanned(
+    input: PlannedAuthorizationInput,
+    now: bigint,
+    validateExpired: (authorization: AuthorizationJobRecord) => Promise<void>,
+  ): Promise<{ expiredAuthorizationJobId?: string }> {
+    if (this.reserveError) throw this.reserveError;
+    if (this.active) {
+      if (now <= this.active.deadline) {
+        throw new ActiveAuthorizationExistsError(this.active.jobId);
+      }
+      await validateExpired(this.active);
+      this.expired = { ...this.active, status: "EXPIRED" };
+    }
+    await this.insertPlanned(input);
+    return this.expired ? { expiredAuthorizationJobId: this.expired.jobId } : {};
   }
   public markFailed(): Promise<void> {
     this.events.push("FAILED");
@@ -100,6 +126,27 @@ class FakeAuthorizationRepository implements AuthorizationRepository {
     this.signature = signature;
     return Promise.resolve();
   }
+}
+
+function persistedAuthorization(
+  overrides: Partial<AuthorizationJobRecord> = {},
+): AuthorizationJobRecord {
+  return {
+    amount: 50n,
+    approverAddress,
+    approverSignature: `0x${"12".repeat(65)}`,
+    campaignId,
+    claimant: wallet.walletAddress,
+    deadline: BigInt(nowSeconds - 1),
+    jobId: "00000000-0000-4000-8000-000000000099",
+    rewardId: `0x${"99".repeat(32)}`,
+    rewardNonce: 7n,
+    status: "READY",
+    typedDataHash: `0x${"98".repeat(32)}`,
+    validAfter: BigInt(nowSeconds - 301),
+    walletId: wallet.id,
+    ...overrides,
+  };
 }
 
 function plan(overrides: Partial<Parameters<typeof planRewardAuthorization>[0]> = {}) {
@@ -247,7 +294,7 @@ describe("reward authorization signing and verification", () => {
       approverAddress,
       approverPrivateKey,
       campaignId,
-      clock: () => nowSeconds + 300,
+      clock: () => nowSeconds + 301,
       eligibility: new TestRewardEligibilityService(),
       entropy: `0x${"77".repeat(32)}`,
       jobId: "00000000-0000-4000-8000-000000000006",
@@ -287,10 +334,110 @@ describe("reward authorization signing and verification", () => {
       reader: reader(), repository, validitySeconds: 300, wallet,
     });
     await expect(verifyPersistedAuthorization(
-      job, reader(), approverAddress, nowSeconds + 300,
+      job, reader(), approverAddress, nowSeconds + 301,
     )).resolves.toMatchObject({ status: "EXPIRED" });
     await expect(verifyPersistedAuthorization(
       { ...job, approverSignature: "0x1234" }, reader(), approverAddress, nowSeconds,
     )).resolves.toMatchObject({ status: "INVALID_SIGNATURE" });
+  });
+
+  it("blocks duplicate issuance while an active READY authorization is still valid", async () => {
+    const repository = new FakeAuthorizationRepository();
+    repository.active = persistedAuthorization({ deadline: BigInt(nowSeconds + 1) });
+    const promise = createAndSignRewardAuthorization({
+      amount: 50n, approverAddress, approverPrivateKey, campaignId,
+      eligibility: new TestRewardEligibilityService(), nowSeconds,
+      reader: reader(), repository, validitySeconds: 300, wallet,
+    });
+    await expect(promise).rejects.toMatchObject({ code: "ACTIVE_AUTHORIZATION_EXISTS" });
+    expect(repository.planned).toBeUndefined();
+  });
+
+  it("retires an expired READY row and reissues the same rewardNonce with new IDs", async () => {
+    const repository = new FakeAuthorizationRepository();
+    const old = persistedAuthorization();
+    repository.active = old;
+    const job = await createAndSignRewardAuthorization({
+      amount: 50n, approverAddress, approverPrivateKey, campaignId,
+      eligibility: new TestRewardEligibilityService(),
+      entropy: `0x${"88".repeat(32)}`,
+      jobId: "00000000-0000-4000-8000-000000000100",
+      nowSeconds, reader: reader(), repository, validitySeconds: 300, wallet,
+    });
+    expect(repository.expired).toMatchObject({
+      approverSignature: old.approverSignature,
+      jobId: old.jobId,
+      rewardId: old.rewardId,
+      status: "EXPIRED",
+      typedDataHash: old.typedDataHash,
+    });
+    expect(job.jobId).not.toBe(old.jobId);
+    expect(job.reissuedFromAuthorizationJobId).toBe(old.jobId);
+    expect(job.rewardId).not.toBe(old.rewardId);
+    expect(job.rewardNonce).toBe(old.rewardNonce);
+    expect(repository.events).toEqual(["PLANNED", "READY"]);
+  });
+
+  it.each(["SIGNED", "BROADCAST", "PENDING_REVIEW"])(
+    "requires reconciliation when an expired authorization has an unresolved %s claim",
+    async () => {
+      const repository = new FakeAuthorizationRepository();
+      repository.reserveError = new AuthorizationReissueRequiresClaimReconciliationError(
+        persistedAuthorization().jobId,
+      );
+      await expect(createAndSignRewardAuthorization({
+        amount: 50n, approverAddress, approverPrivateKey, campaignId,
+        eligibility: new TestRewardEligibilityService(), nowSeconds,
+        reader: reader(), repository, validitySeconds: 300, wallet,
+      })).rejects.toMatchObject({
+        code: "AUTHORIZATION_REISSUE_REQUIRES_CLAIM_RECONCILIATION",
+      });
+    },
+  );
+
+  it("blocks blind reissuance when the old rewardId is used", async () => {
+    const repository = new FakeAuthorizationRepository();
+    repository.active = persistedAuthorization();
+    const contract = reader();
+    contract.isRewardIdUsedSpy
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true);
+    await expect(createAndSignRewardAuthorization({
+      amount: 50n, approverAddress, approverPrivateKey, campaignId,
+      eligibility: new TestRewardEligibilityService(), nowSeconds,
+      reader: contract, repository, validitySeconds: 300, wallet,
+    })).rejects.toMatchObject({ code: "AUTHORIZATION_REISSUE_REWARD_ID_USED" });
+    expect(repository.expired).toBeUndefined();
+  });
+
+  it("blocks stale reissuance when the on-chain rewardNonce advances under the row lock", async () => {
+    const repository = new FakeAuthorizationRepository();
+    repository.active = persistedAuthorization();
+    const contract = reader();
+    contract.getRewardNonceSpy
+      .mockResolvedValueOnce(7n)
+      .mockResolvedValueOnce(8n);
+    await expect(createAndSignRewardAuthorization({
+      amount: 50n, approverAddress, approverPrivateKey, campaignId,
+      eligibility: new TestRewardEligibilityService(), nowSeconds,
+      reader: contract, repository, validitySeconds: 300, wallet,
+    })).rejects.toMatchObject({
+      code: "AUTHORIZATION_REISSUE_REWARD_NONCE_ADVANCED",
+    });
+    expect(repository.expired).toBeUndefined();
+  });
+
+  it("keeps verification read-only and treats deadline equality as not expired", async () => {
+    const repository = new FakeAuthorizationRepository();
+    const job = await createAndSignRewardAuthorization({
+      amount: 50n, approverAddress, approverPrivateKey, campaignId,
+      eligibility: new TestRewardEligibilityService(),
+      entropy: `0x${"77".repeat(32)}`,
+      nowSeconds, reader: reader(), repository, validitySeconds: 300, wallet,
+    });
+    await expect(verifyPersistedAuthorization(
+      job, reader(), approverAddress, nowSeconds + 300,
+    )).resolves.toMatchObject({ status: "VALID" });
+    expect(repository.events).toEqual(["PLANNED", "READY"]);
   });
 });

@@ -69,7 +69,9 @@ live campaign, interval, budget, pause, and contract rewardNonce reads
         |
 exact bigint amount + Unix-second validity + unique rewardId
         |
-persist PLANNED authorization
+lock active nonce tuple; safely retire expired history if reissuable
+        |
+persist fresh PLANNED authorization in the same transaction
         |
 canonical EIP-712 hash + Approver signature + recovered signer/role check
         |
@@ -79,6 +81,11 @@ persist hash/signature -> READY
 The Approver is an off-chain signer and pays no gas. Phase 4A has no transaction
 broadcaster and sends zero transactions. Phase 5 will use the persisted
 authorization in a User Wallet-signed `claimReward()` transaction.
+
+Only `PLANNED`, `SIGNED`, and `READY` participate in active tuple uniqueness.
+Expired history and its signature evidence remain preserved apart from status
+and `expired_at`. Same-`rewardNonce` reissuance always uses new job/reward IDs
+and is blocked when a claim is unresolved or chain replay state has moved.
 
 ## Phase 4B-1 Test Campaign preflight
 
@@ -141,7 +148,8 @@ signing. Status and preflight never broadcast.
   sequential execution, broadcast identity, and restart reconciliation.
 - `src/authorization` owns the canonical EIP-712 schema, exact IRB/base-unit and
   validity policies, reward IDs, eligibility abstraction, job repository,
-  signing, and independent verification.
+  signing, explicit transactional expiration/reissuance, and read-only
+  verification.
 - `src/campaign` owns deterministic Test Campaign proposal validation, role and
   balance sufficiency checks, unsigned transaction ordering, gas estimation,
   guarded three-step execution, exact event/final-state validation, evidence,
