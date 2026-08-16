@@ -146,13 +146,30 @@ signing. Status and preflight never broadcast.
   balance sufficiency checks, unsigned transaction ordering, gas estimation,
   guarded three-step execution, exact event/final-state validation, evidence,
   RPC uncertainty handling, and safe public presentation.
+- `src/claim` owns exact calldata, current-state preflight, claimant-only signing,
+  claim evidence, confirmation validation, idempotency, and reconciliation.
 - `src/cli` owns explicit operational commands and always destroys RPC providers
   or closes database pools.
 
-## Claim transaction model
+## Phase 5A claim transaction model
 
-Phase 4A reads on-chain campaign state and the claimant's contract
-`rewardNonce`, then creates and Approver-signs an EIP-712 authorization. A later
-phase will have the User Wallet sign and send `claimReward`. The User Wallet—not
-the Approver—is the sender, gas payer, and recipient. The claim broadcaster is
-deliberately absent from Phase 4A.
+```text
+READY authorization + ACTIVE public User Wallet
+        |
+chain/bytecode/token/campaign/replay/signature/role/interval preflight
+        |
+claimant balances + exact calldata + pending Ethereum nonce + gas estimate
+        |
+independent guard + encrypted User Wallet decrypt/address validation
+        |
+User Wallet sign -> persist SIGNED hash -> broadcast identical bytes
+        |
+receipt + exact RewardClaimed + balances/accounting/replay validation
+        |
+CONFIRMED claim + atomic authorization CONSUMED
+```
+
+The User Wallet—not the Approver—is sender, gas payer, and recipient. The
+Approver's EIP-712 signature is a calldata argument. `rewardNonce` is contract
+replay state; the pending Ethereum account nonce is the transaction nonce.
+Uncertain hashes are reconciled and never replaced automatically.

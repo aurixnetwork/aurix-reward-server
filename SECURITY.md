@@ -13,7 +13,7 @@ Never publish:
 
 Security findings should be reported privately before public disclosure.
 
-## Phase 1 through Phase 4A controls
+## Phase 1 through Phase 5A controls
 
 - Phase 1 loads no wallet, funding, or Approver private keys.
 - Blockchain clients are constructed with providers only; no signer is present.
@@ -48,6 +48,18 @@ Security findings should be reported privately before public disclosure.
 - The canonical EIP-712 type and deployed type hash, recovered signer, unique
   reward ID, and campaign/claimant/contract-nonce tuple are verified before an
   authorization is ready.
+- Claim planning is read-only and does not decrypt User Wallet secrets.
+- Claim broadcasting has the independent false-default
+  `CLAIM_EXECUTION_ENABLED` guard. Phase 5A validation keeps it false.
+- Guarded signing loads only the claimant's encrypted record and requires the
+  derived address to match stored wallet and authorization claimant.
+- The User Wallet is the sole `claimReward` sender and pays tBNB gas; Approver,
+  Funding, Admin, Operations, and IRB Token Owner keys are not claim senders.
+- Claim signed hashes are persisted before broadcast. Raw signed bytes and
+  plaintext keys remain memory-only and have no database column.
+- RPC uncertainty is retained for reconciliation without a new transaction.
+  Confirmation requires receipt success, exact `RewardClaimed`, and exact
+  replay/accounting/balance evidence before authorization becomes `CONSUMED`.
 
 Back up `WALLET_ENCRYPTION_KEY` and its version in an approved secret manager.
 If this key is lost, encrypted User Wallet private keys may be permanently

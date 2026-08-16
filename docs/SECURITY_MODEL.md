@@ -1,6 +1,6 @@
 # Security model
 
-## Phase 1 through Phase 4B-2 guarantees
+## Phase 1 through Phase 5A guarantees
 
 - Only BSC Testnet chain ID 97 is accepted.
 - Only the fixed Reward Contract and IRB addresses are accepted.
@@ -21,6 +21,16 @@
 - Phase 4A has no broadcaster. Approver signing is off-chain, the private key is
   environment-only, and the derived address must match the fixed expected
   Testnet Approver before signing.
+- Phase 5A planning uses public wallet state only. Claim execution is disabled
+  by default and decrypts only the claimant User Wallet after the guard and
+  complete preflight.
+- The claimant User Wallet is the only claim sender and gas payer. Funding,
+  Admin, Operations, token-owner, and Approver keys cannot submit `claimReward`.
+- Signed claim bytes are memory-only. Their hash is persisted before broadcast;
+  timeouts require reconciliation and never trigger an automatic replacement.
+- A successful receipt alone is insufficient: exact event, token deltas,
+  campaign accounting, reward nonce, reward ID, and `lastClaimAt` must validate
+  before confirmation and authorization consumption.
 
 ## Trust boundaries
 
@@ -31,8 +41,9 @@ transaction nonce is not a reward nonce.
 
 Approver, Funding, and User Wallet key material must remain logically separated.
 User Wallet keys must be encrypted at rest, and only the User Wallet may sign the
-final claim transaction. The claim-signing path remains a future phase; Phase 3
-loads only the separate Funding Wallet signer in its guarded execution command.
+final claim transaction. Phase 5A authenticates AES-GCM fields and requires the
+derived address to equal both the stored address and authorization claimant.
+Plaintext material is scoped to local signing and is not persisted or logged.
 
 The authorization create command never persists or logs the Approver key. It
 persists only the public address, canonical typed-data hash, public signature,
@@ -70,6 +81,11 @@ fixed workflow roles from becoming unnecessary secret dependencies.
 The Operations tBNB buffer is transaction preparation, not a maintenance
 balance. Once campaign creation is satisfied, a lower Operations balance does
 not authorize or plan an Admin transfer.
+
+Claim idempotency is enforced in the database and against on-chain replay state.
+An existing unresolved hash is reconciled before any new signing. A reverted
+claim leaves its authorization READY but its failed job prevents automatic
+reuse. `CONSUMED` is written only atomically with exact confirmed evidence.
 
 ## Operational handling
 

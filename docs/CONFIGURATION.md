@@ -117,3 +117,20 @@ derives and validates only the signers required by live planned actions. A
 target-satisfied step reports `SKIPPED_NOT_REQUIRED`; its signer key may be
 absent without blocking preflight or execution. Never add a real key to
 `.env.example` or tracked content.
+
+## Phase 5 claim execution
+
+| Variable | Required | Rule |
+| --- | --- | --- |
+| `MAX_CLAIM_GAS_PRICE_GWEI` | no | Positive maximum for the observed claim gas price |
+| `CLAIM_EXECUTION_ENABLED` | execution only | Must explicitly equal `true`; tracked/default value is `false` |
+
+Planning and status require database/RPC configuration but no signer secret.
+Guarded execution additionally requires `WALLET_ENCRYPTION_KEY` at the encrypted
+record's version. The User Wallet key is decrypted only after the guard and a
+fully executable public-state plan. Funding, Approver, Admin, Operations, and
+token-owner private keys are neither required nor accepted as claim senders.
+
+The claim guard is independent of funding and campaign guards. Phase 5A keeps
+all three false. The engine uses a fixed 20% gas-limit margin and never tops up
+the claimant; run the separate funding plan when gas is insufficient.

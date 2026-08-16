@@ -14,9 +14,14 @@ mnemonics, or raw signed transactions. Phase 4A adds
 `0003_create_reward_authorization_jobs.sql`, including exact uint256 decimal
 strings and unique job, reward ID, and campaign/claimant/contract-nonce guards.
 It stores the public Approver signature and typed-data hash, never the Approver
-key. Claim tables remain deferred to their owning phase.
+key.
 
 Phase 4B-2 adds `0004_create_campaign_execution_operations.sql`. It stores
 public operation payloads, signed/broadcast hashes, receipts, blocks, gas, fees,
 and status for the three campaign operations. It stores no key or raw signed
 transaction.
+
+Phase 5A adds `0005_create_reward_claim_jobs.sql`. Unique authorization-job and
+reward-ID keys prevent duplicate execution. It stores separate reward and
+Ethereum transaction nonces, signed/broadcast hashes, receipt/event/balance
+evidence, and lifecycle state, but no wallet key or raw signed transaction.

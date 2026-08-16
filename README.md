@@ -2,7 +2,7 @@
 
 Public backend repository for the Aurix Network reward authorization and self-claim system.
 
-## Phase 4B-2 status
+## Phase 5A status
 
 Phase 1's BSC Testnet foundation and Phase 2's encrypted ten-wallet store remain
 intact, and Phase 3 funding is complete. Phase 4A adds the read-only campaign
@@ -20,6 +20,10 @@ Signer keys are required only for transactions still required by live state;
 target-satisfied steps need no corresponding private key.
 The Operations tBNB buffer is funded only to enable a planned Operations
 transaction and is never continuously restored after campaign creation.
+Phase 5A adds exact claimant-signed `claimReward` planning, encrypted User
+Wallet signing scope, signed-hash-before-broadcast evidence, exact confirmation,
+and restart reconciliation. Its broadcast path has a separate false-by-default
+guard. Phase 5A implementation and validation send zero transactions.
 
 ## Fixed environment
 
@@ -73,6 +77,11 @@ npm run campaign:execute:test
 npm run authorization:plan:test -- --wallet-id 1 --campaign-id <bytes32> --amount <IRB>
 npm run authorization:create:test -- --wallet-id 1 --campaign-id <bytes32> --amount <IRB>
 npm run authorization:verify:test -- --job-id <uuid>
+npm run claim:plan:test -- --authorization-job-id <uuid>
+npm run claim:status:test -- --authorization-job-id <uuid>
+npm run claim:reconcile:test
+# Owner-reviewed operation only; disabled unless CLAIM_EXECUTION_ENABLED=true
+npm run claim:execute:test -- --authorization-job-id <uuid>
 ```
 
 The health check validates RPC reachability and chain identity. The preflight
@@ -94,9 +103,9 @@ The User Wallet is the transaction sender, gas payer, and reward recipient.
 The Phase 3 Funding Wallet may send only native tBNB to test User Wallets through
 the explicitly guarded execution command. Phase 4B-2 reuses that Admin key only
 for the exact Operations gas-target top-up; Operations signs campaign creation
-and the IRB owner signs target-inventory funding. In Phase 4A the Approver signs only
-off-chain typed data and pays no gas. A later phase will let the User Wallet send
-the claim transaction; that write path remains unimplemented.
+and the IRB owner signs target-inventory funding. The Approver signs only
+off-chain typed data and pays no gas. For a reward claim, only the claimant User
+Wallet signs the final transaction and pays tBNB gas.
 
 ## Documentation
 
@@ -110,4 +119,5 @@ the claim transaction; that write path remains unimplemented.
 - [Test User Wallet operations](docs/TEST_WALLET_OPERATIONS.md)
 - [tBNB funding operations](docs/TBNB_FUNDING.md)
 - [Reward authorization](docs/REWARD_AUTHORIZATION.md)
+- [Claim execution](docs/CLAIM_EXECUTION.md)
 - [Test Campaign operations](docs/TEST_CAMPAIGN.md)

@@ -89,3 +89,18 @@ nonce, gas settings, calldata hash, signed/broadcast hashes, receipt, block,
 fee, status, and timestamps. A generated active-operation key prevents a second
 unresolved operation of the same type. It does not duplicate campaign state and
 has no private-key or raw-signed-transaction column.
+
+## Phase 5A claim execution schema
+
+Migration `0005_create_reward_claim_jobs.sql` adds `reward_claim_jobs`. It stores
+authorization and wallet foreign identities, claimant/campaign/reward identity,
+contract reward nonce, amount, independent Ethereum transaction nonce, gas
+settings, signed/broadcast hashes, receipt/gas/fee evidence, before/after
+User/Reward Contract IRB balances, campaign distributed evidence, `lastClaimAt`,
+exact `RewardClaimed` evidence, statuses/errors, and timestamps.
+
+Unique keys on `authorization_job_id` and `reward_id` prevent independent jobs
+for one authorization or reward. Uint256 values are 78-character ASCII decimal
+strings mapped to `bigint`. There is deliberately no private key, ciphertext,
+encryption key, mnemonic, or raw signed transaction column. Confirmation and
+authorization consumption are committed in one database transaction.

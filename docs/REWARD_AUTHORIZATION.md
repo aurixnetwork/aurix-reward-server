@@ -59,7 +59,9 @@ An authorization is prepared only after all of these checks succeed:
 Signing failures leave an explicit `FAILED` record. A `READY` record can later
 be independently verified as valid, expired, stale because the contract nonce
 changed, malformed, signed by the wrong address, or missing the required role.
-`CONSUMED` is reserved for the Phase 5 claim lifecycle.
+`CONSUMED` is set only after Phase 5 has a successful receipt, an exact matching
+`RewardClaimed` event, and all required post-state evidence. Signing or
+broadcasting alone never consumes the database authorization.
 
 ## Replay and nonce policy
 
@@ -102,6 +104,7 @@ npm run campaign:inspect:test -- --campaign-id <bytes32>
 npm run authorization:plan:test -- --wallet-id 1 --campaign-id <bytes32> --amount <IRB>
 npm run authorization:create:test -- --wallet-id 1 --campaign-id <bytes32> --amount <IRB>
 npm run authorization:verify:test -- --job-id <uuid>
+npm run claim:plan:test -- --authorization-job-id <uuid>
 ```
 
 Campaign inspection and authorization planning are read-only. Planning does not
@@ -117,3 +120,9 @@ Phase 4B-1 proposes the deterministic campaign ID documented in
 [Test Campaign creation preflight](TEST_CAMPAIGN.md), but does not create it or
 create an authorization. Authorization preparation remains blocked until that
 campaign is later confirmed on-chain and active within its time window.
+
+Phase 5 accepts any fresh `READY` authorization job; it has no operational
+dependency on the historical Phase 4C demonstration job. Claim execution
+reconstructs the canonical typed data and repeats signer/current-role,
+reward-nonce, reward-ID, validity, campaign, and interval checks immediately
+before the claimant transaction is signed.

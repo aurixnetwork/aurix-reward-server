@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Added the Phase 5A claimant-funded claim engine with exact deployed calldata,
+  comprehensive current-state preflight, encrypted User Wallet address
+  validation, pending Ethereum nonce handling, and a separate false-default
+  execution guard. Phase 5A development sent zero transactions.
+- Added signed-hash-before-broadcast claim evidence, same-bytes RPC failover,
+  uncertainty/restart reconciliation, exact `RewardClaimed` and post-state
+  confirmation, and atomic authorization consumption.
+- Added the `reward_claim_jobs` idempotency/evidence migration plus claim plan,
+  execution, status, and reconciliation commands and deterministic coverage.
+
 - Made the Operations tBNB top-up dependent on a pending campaign creation, so
   an already-created campaign never triggers generic balance maintenance.
 
