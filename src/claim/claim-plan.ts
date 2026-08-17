@@ -1,4 +1,5 @@
 import { getAddress } from "ethers";
+import type { TypedDataDomain } from "ethers";
 
 import type { AuthorizationJobRecord } from "../authorization/authorization-types.js";
 import {
@@ -23,6 +24,8 @@ export interface BuildClaimPlanInput {
   readonly authorization: AuthorizationJobRecord;
   readonly existingJob?: ClaimJobRecord;
   readonly expectedApprover: string;
+  readonly expectedChainId?: number;
+  readonly eip712Domain?: TypedDataDomain;
   readonly irbTokenAddress: string;
   readonly maxGasPriceWei?: bigint;
   readonly provider: ClaimProvider;
@@ -90,8 +93,9 @@ export async function buildClaimPlan(input: BuildClaimPlanInput): Promise<ClaimP
 
   if (!latestBlock) throw new Error("Latest BSC Testnet block was unavailable");
   const now = BigInt(latestBlock.timestamp);
-  if (Number(network.chainId) !== BSC_TESTNET_CHAIN_ID) {
-    add(blockers, "BLOCKED_WRONG_CHAIN", "RPC chain ID is not BSC Testnet 97");
+  const expectedChainId = input.expectedChainId ?? BSC_TESTNET_CHAIN_ID;
+  if (Number(network.chainId) !== expectedChainId) {
+    add(blockers, "BLOCKED_WRONG_CHAIN", `RPC chain ID is not expected chain ${expectedChainId}`);
   }
   if (rewardCode === "0x") {
     add(blockers, "BLOCKED_REWARD_CONTRACT_CODE_MISSING", "Reward Contract bytecode is missing");
@@ -143,7 +147,7 @@ export async function buildClaimPlan(input: BuildClaimPlanInput): Promise<ClaimP
   let recoveredApprover: string | undefined;
   try {
     validateRewardAuthorization(authorizationFromJob(authorization));
-    const calculatedHash = hashRewardAuthorization(authorizationFromJob(authorization));
+    const calculatedHash = hashRewardAuthorization(authorizationFromJob(authorization), input.eip712Domain);
     if (!authorization.typedDataHash || calculatedHash.toLowerCase() !== authorization.typedDataHash.toLowerCase()) {
       add(blockers, "BLOCKED_INVALID_AUTHORIZATION_HASH", "Persisted EIP-712 hash does not match canonical authorization fields");
     }
@@ -153,6 +157,7 @@ export async function buildClaimPlan(input: BuildClaimPlanInput): Promise<ClaimP
       recoveredApprover = recoverRewardAuthorizationSigner(
         authorizationFromJob(authorization),
         authorization.approverSignature,
+        input.eip712Domain,
       );
       if (
         recoveredApprover !== getAddress(input.expectedApprover) ||
@@ -182,7 +187,7 @@ export async function buildClaimPlan(input: BuildClaimPlanInput): Promise<ClaimP
   const canEstimate = blockers.length === 0 && expectedAction === "SIGN_AND_BROADCAST";
   if (canEstimate && authorization.approverSignature && gasPriceWei !== undefined) {
     const baseTransaction = {
-      chainId: BSC_TESTNET_CHAIN_ID,
+      chainId: expectedChainId,
       data: encodeClaimReward(authorizationFromJob(authorization), authorization.approverSignature),
       from: claimant,
       gasPrice: gasPriceWei,

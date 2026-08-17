@@ -1,4 +1,5 @@
 import { ZeroHash } from "ethers";
+import type { TypedDataDomain } from "ethers";
 
 import {
   createAndSignRewardAuthorization,
@@ -35,9 +36,11 @@ export interface ExistingClaimLifecycleInput {
   readonly claimReader: ClaimChainReader;
   readonly claimRepository: ClaimRepository;
   readonly eligibility: RewardEligibilityService;
+  readonly eip712Domain?: TypedDataDomain;
   readonly encryption?: WalletEncryptionConfig;
   readonly executionEnabled: boolean;
   readonly expectedApprover: string;
+  readonly expectedChainId?: number;
   readonly irbTokenAddress: string;
   readonly maxGasPriceWei?: bigint;
   readonly primaryProvider: ClaimProvider;
@@ -54,6 +57,8 @@ export function createExistingClaimLifecycle(
       authorization,
       ...(existingJob ? { existingJob } : {}),
       expectedApprover: input.expectedApprover,
+      ...(input.expectedChainId === undefined ? {} : { expectedChainId: input.expectedChainId }),
+      ...(input.eip712Domain ? { eip712Domain: input.eip712Domain } : {}),
       irbTokenAddress: input.irbTokenAddress,
       ...(input.maxGasPriceWei === undefined
         ? {}
@@ -75,6 +80,7 @@ export function createExistingClaimLifecycle(
         campaignId: input.args.campaignId,
         clock: () => Math.floor(Date.now() / 1_000),
         eligibility: input.eligibility,
+        ...(input.eip712Domain ? { eip712Domain: input.eip712Domain } : {}),
         nowSeconds,
         reader: input.authorizationReader,
         repository: input.authorizationRepository,

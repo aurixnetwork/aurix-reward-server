@@ -81,6 +81,7 @@ export interface BatchRunResult {
 }
 
 export interface BatchAuthorizationJobs {
+  findByJobId?(jobId: string): Promise<AuthorizationJobRecord | undefined>;
   listActiveByCampaignClaimant(
     campaignId: string,
     claimant: string,
@@ -88,6 +89,10 @@ export interface BatchAuthorizationJobs {
 }
 
 export interface BatchClaimJobs {
+  findLatestByWalletCampaign?(
+    walletId: string,
+    campaignId: string,
+  ): Promise<ClaimJobRecord | undefined>;
   findByAuthorizationJobId(
     authorizationJobId: string,
   ): Promise<ClaimJobRecord | undefined>;

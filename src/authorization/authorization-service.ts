@@ -1,4 +1,5 @@
 import { id, ZeroHash } from "ethers";
+import type { TypedDataDomain } from "ethers";
 
 import {
   REWARD_AUTHORIZATION_TYPE_STRING,
@@ -51,6 +52,7 @@ export interface CreateAuthorizationInput {
   readonly campaignId: string;
   readonly clock?: () => number;
   readonly eligibility: RewardEligibilityService;
+  readonly eip712Domain?: TypedDataDomain;
   readonly entropy?: string;
   readonly jobId?: string;
   readonly nowSeconds: number;
@@ -242,7 +244,7 @@ export async function createAndSignRewardAuthorization(
     if (onChainTypeHash.toLowerCase() !== id(REWARD_AUTHORIZATION_TYPE_STRING).toLowerCase()) {
       throw new Error("Deployed RewardAuthorization type hash does not match the server definition");
     }
-    const typedDataHash = hashRewardAuthorization(authorization);
+    const typedDataHash = hashRewardAuthorization(authorization, input.eip712Domain);
     validateRewardAuthorization(
       authorization,
       BigInt(input.clock?.() ?? input.nowSeconds),
@@ -250,8 +252,9 @@ export async function createAndSignRewardAuthorization(
     const signature = await signRewardAuthorization(
       authorization,
       input.approverPrivateKey,
+      input.eip712Domain,
     );
-    const recovered = recoverRewardAuthorizationSigner(authorization, signature);
+    const recovered = recoverRewardAuthorizationSigner(authorization, signature, input.eip712Domain);
     if (recovered !== input.approverAddress) {
       throw new Error("Recovered authorization signer does not match expected Approver");
     }
@@ -284,6 +287,7 @@ export async function verifyPersistedAuthorization(
   reader: CampaignAuthorizationReader,
   expectedApprover: string,
   nowSeconds: number,
+  eip712Domain?: TypedDataDomain,
 ): Promise<AuthorizationVerificationResult> {
   const currentRewardNonce = await reader.getRewardNonce(
     job.campaignId,
@@ -303,7 +307,7 @@ export async function verifyPersistedAuthorization(
   let calculatedHash: string;
   try {
     validateRewardAuthorization(authorization);
-    calculatedHash = hashRewardAuthorization(authorization);
+    calculatedHash = hashRewardAuthorization(authorization, eip712Domain);
   } catch {
     return { ...base, status: "INVALID_HASH" };
   }
@@ -316,6 +320,7 @@ export async function verifyPersistedAuthorization(
     recoveredSigner = recoverRewardAuthorizationSigner(
       authorization,
       job.approverSignature,
+      eip712Domain,
     );
   } catch {
     return { ...base, status: "INVALID_SIGNATURE" };

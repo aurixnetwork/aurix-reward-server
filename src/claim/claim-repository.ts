@@ -93,6 +93,17 @@ export class MySqlClaimRepository implements ClaimRepository {
     return rows[0] ? mapRow(rows[0]) : undefined;
   }
 
+  public async findLatestByWalletCampaign(
+    walletId: string,
+    campaignId: string,
+  ): Promise<ClaimJobRecord | undefined> {
+    const [rows] = await this.pool.execute<ClaimJobRow[]>(
+      `${selectColumns()} WHERE wallet_id = ? AND campaign_id = ? ORDER BY id DESC LIMIT 1`,
+      [walletId, campaignId],
+    );
+    return rows[0] ? mapRow(rows[0]) : undefined;
+  }
+
   public async findByAuthorizationJobId(
     authorizationJobId: string,
   ): Promise<ClaimJobRecord | undefined> {

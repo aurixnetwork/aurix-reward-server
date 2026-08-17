@@ -25,6 +25,21 @@ export const REWARD_AUTHORIZATION_DOMAIN: Readonly<TypedDataDomain> = {
   version: REWARD_EIP712_VERSION,
 };
 
+export function createRewardAuthorizationDomain(
+  chainId: number,
+  verifyingContract: string,
+): Readonly<TypedDataDomain> {
+  if (!Number.isSafeInteger(chainId) || chainId <= 0) {
+    throw new Error("EIP-712 chainId must be a positive safe integer");
+  }
+  return {
+    chainId,
+    name: REWARD_EIP712_NAME,
+    verifyingContract: getAddress(verifyingContract),
+    version: REWARD_EIP712_VERSION,
+  };
+}
+
 export const REWARD_AUTHORIZATION_TYPES: Record<
   typeof REWARD_AUTHORIZATION_PRIMARY_TYPE,
   TypedDataField[]
@@ -66,10 +81,11 @@ export function validateRewardAuthorization(
 
 export function hashRewardAuthorization(
   authorization: RewardAuthorization,
+  domain: TypedDataDomain = REWARD_AUTHORIZATION_DOMAIN,
 ): string {
   validateRewardAuthorization(authorization);
   return TypedDataEncoder.hash(
-    REWARD_AUTHORIZATION_DOMAIN,
+    domain,
     REWARD_AUTHORIZATION_TYPES,
     authorization,
   );
@@ -78,10 +94,11 @@ export function hashRewardAuthorization(
 export async function signRewardAuthorization(
   authorization: RewardAuthorization,
   privateKey: string,
+  domain: TypedDataDomain = REWARD_AUTHORIZATION_DOMAIN,
 ): Promise<string> {
   validateRewardAuthorization(authorization);
   return new Wallet(privateKey).signTypedData(
-    REWARD_AUTHORIZATION_DOMAIN,
+    domain,
     REWARD_AUTHORIZATION_TYPES,
     authorization,
   );
@@ -90,10 +107,11 @@ export async function signRewardAuthorization(
 export function recoverRewardAuthorizationSigner(
   authorization: RewardAuthorization,
   signature: string,
+  domain: TypedDataDomain = REWARD_AUTHORIZATION_DOMAIN,
 ): string {
   validateRewardAuthorization(authorization);
   return getAddress(verifyTypedData(
-    REWARD_AUTHORIZATION_DOMAIN,
+    domain,
     REWARD_AUTHORIZATION_TYPES,
     authorization,
     signature,

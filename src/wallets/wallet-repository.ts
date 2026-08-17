@@ -91,6 +91,23 @@ export class MySqlWalletRepository implements WalletRepository {
     return row ? mapPublicRow(row) : undefined;
   }
 
+  public async findMainnetEncryptedById(id: string): Promise<EncryptedWalletRecord | undefined> {
+    const [rows] = await this.executor.execute<WalletRow[]>(
+      `SELECT id, wallet_address, encrypted_private_key, encryption_iv,
+              encryption_auth_tag, encryption_key_version, status, created_at, updated_at
+         FROM reward_user_wallets WHERE id = ? AND network_profile = 'MAINNET'`, [id],
+    );
+    return rows[0] ? mapEncryptedRow(rows[0]) : undefined;
+  }
+
+  public async findMainnetPublicById(id: string): Promise<PublicWalletRecord | undefined> {
+    const [rows] = await this.executor.execute<PublicWalletRow[]>(
+      "SELECT id, wallet_address, status, created_at FROM reward_user_wallets WHERE id = ? AND network_profile = 'MAINNET'",
+      [id],
+    );
+    return rows[0] ? mapPublicRow(rows[0]) : undefined;
+  }
+
   public async insert(wallet: NewEncryptedWallet): Promise<EncryptedWalletRecord> {
     try {
       const [result] = await this.executor.execute<ResultSetHeader>(
@@ -120,13 +137,58 @@ export class MySqlWalletRepository implements WalletRepository {
     }
   }
 
+  public async existsByAddress(address: string): Promise<boolean> {
+    const [rows] = await this.executor.execute<RowDataPacket[]>(
+      "SELECT 1 FROM reward_user_wallets WHERE wallet_address = ? LIMIT 1",
+      [getAddress(address)],
+    );
+    return rows.length > 0;
+  }
+
+  public async insertMainnet(wallet: NewEncryptedWallet): Promise<EncryptedWalletRecord> {
+    try {
+      const [result] = await this.executor.execute<ResultSetHeader>(
+        `INSERT INTO reward_user_wallets
+           (wallet_address, network_profile, encrypted_private_key, encryption_iv,
+            encryption_auth_tag, encryption_key_version, status)
+         VALUES (?, 'MAINNET', ?, ?, ?, ?, ?)`,
+        [getAddress(wallet.walletAddress), wallet.encryptedPrivateKey, wallet.encryptionIv,
+          wallet.encryptionAuthTag, wallet.encryptionKeyVersion, wallet.status],
+      );
+      const saved = await this.findEncryptedById(String(result.insertId));
+      if (!saved) throw new Error("Inserted Mainnet wallet record could not be reloaded");
+      return saved;
+    } catch (error: unknown) {
+      if (isDuplicateEntryError(error)) throw new DuplicateWalletAddressError();
+      throw error;
+    }
+  }
+
+  public async insertManyMainnet(wallets: readonly NewEncryptedWallet[]): Promise<readonly EncryptedWalletRecord[]> {
+    if (!this.pool) throw new Error("Atomic Mainnet bulk import requires a database pool");
+    const connection = await this.pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const repository = new MySqlWalletRepository(connection);
+      const results: EncryptedWalletRecord[] = [];
+      for (const wallet of wallets) results.push(await repository.insertMainnet(wallet));
+      await connection.commit();
+      return results;
+    } catch (error: unknown) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  }
+
   public async listActiveEncrypted(): Promise<readonly EncryptedWalletRecord[]> {
     const [rows] = await this.executor.execute<WalletRow[]>(
       `SELECT id, wallet_address, encrypted_private_key, encryption_iv,
               encryption_auth_tag, encryption_key_version, status,
               created_at, updated_at
          FROM reward_user_wallets
-        WHERE status = 'ACTIVE'
+        WHERE status = 'ACTIVE' AND network_profile = 'TESTNET'
         ORDER BY id`,
     );
     return rows.map(mapEncryptedRow);
@@ -136,6 +198,7 @@ export class MySqlWalletRepository implements WalletRepository {
     const [rows] = await this.executor.execute<PublicWalletRow[]>(
       `SELECT id, wallet_address, status, created_at
          FROM reward_user_wallets
+        WHERE network_profile = 'TESTNET'
         ORDER BY id`,
     );
     return rows.map(mapPublicRow);
