@@ -25,3 +25,9 @@ Phase 5A adds `0005_create_reward_claim_jobs.sql`. Unique authorization-job and
 reward-ID keys prevent duplicate execution. It stores separate reward and
 Ethereum transaction nonces, signed/broadcast hashes, receipt/event/balance
 evidence, and lifecycle state, but no wallet key or raw signed transaction.
+
+Mainnet Production readiness adds `0007` through `0012`. They designate Wallet
+network profiles, store Campaign pacing, durable Reward Runs and Run Items, and
+add expiring Wallet/global-dispatcher leases. Existing Wallet rows remain
+`TESTNET`; nothing copies or generates Mainnet Wallets. These migrations remain
+pending until explicit owner review and application.

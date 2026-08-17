@@ -1,0 +1,20 @@
+CREATE TABLE reward_campaign_operations (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  chain_id INT UNSIGNED NOT NULL,
+  reward_contract_address CHAR(42) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  reward_token_address CHAR(42) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  campaign_id CHAR(66) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  campaign_name VARCHAR(128) NOT NULL,
+  policy ENUM('FIRST_REWARD_ONLY','ONCE_PER_CAMPAIGN','RECURRING') NOT NULL,
+  policy_scope VARCHAR(128) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  reward_amount_wei VARCHAR(78) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  dispatch_interval_seconds INT UNSIGNED NOT NULL,
+  next_dispatch_at TIMESTAMP(6) NULL,
+  last_dispatched_at TIMESTAMP(6) NULL,
+  operational_status ENUM('DRAFT','READY','ACTIVE','PAUSED','STOPPED') NOT NULL DEFAULT 'DRAFT',
+  created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_reward_campaign_operations_identity (chain_id, reward_contract_address, campaign_id),
+  KEY idx_reward_campaign_operations_due (operational_status, next_dispatch_at, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
