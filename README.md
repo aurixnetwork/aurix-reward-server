@@ -2,7 +2,7 @@
 
 Public backend repository for the Aurix Network reward authorization and self-claim system.
 
-## Phase 5A status
+## Testnet baseline and Mainnet Production readiness
 
 Phase 1's BSC Testnet foundation and Phase 2's encrypted ten-wallet store remain
 intact, and Phase 3 funding is complete. Phase 4A adds the read-only campaign
@@ -37,7 +37,10 @@ job and reward IDs. Unresolved claims require reconciliation first.
 - Reward Test Token: IRISBANK / IRB
 - IRB: `0x7daf7fE962B123A6698D5e3a109c551872790AeA`
 
-BSC Mainnet is out of scope.
+Mainnet Production v1 is implemented as a separate fail-closed profile: chain
+56, AURX `0x24ECb00840081D56116fC6D076988411a5595fd0`, and no Reward Contract default.
+The current work is implementation and read-only readiness only; no Mainnet
+deployment, Campaign, transfer, funding, or Claim is performed.
 
 ## Setup
 
@@ -84,6 +87,11 @@ npm run authorization:verify:test -- --job-id <uuid>
 npm run claim:plan:test -- --authorization-job-id <uuid>
 npm run claim:status:test -- --authorization-job-id <uuid>
 npm run claim:reconcile:test
+npm run mainnet:readiness
+npm run mainnet:gas:readiness
+npm run mainnet:reward:plan -- --wallet-count 10 --reward-amount <AURX>
+# Future DB-only Run administration after owner-approved migrations/configuration
+npm run mainnet:run:admin -- create --run-id <id> --campaign-operation-id <id> --wallet-id-start <n> --wallet-id-end <n>
 npm run claim:batch:plan:test -- --campaign-id <bytes32> --wallet-id-start 1 --wallet-id-end 10 --amount 0.1
 # Owner-reviewed operation only; disabled unless CLAIM_EXECUTION_ENABLED=true
 npm run claim:execute:test -- --authorization-job-id <uuid>
@@ -134,3 +142,6 @@ Wallet signs the final transaction and pays tBNB gas.
 - [Claim execution](docs/CLAIM_EXECUTION.md)
 - [10-wallet Testnet batch reward pilot](docs/10_WALLET_BATCH_PILOT.md)
 - [Test Campaign operations](docs/TEST_CAMPAIGN.md)
+- [Mainnet Production Reward Server](docs/MAINNET_REWARD_SERVER.md)
+- [Production Reward Runs](docs/PRODUCTION_REWARD_RUNS.md)
+- [Multi-Campaign Dispatcher](docs/MULTI_CAMPAIGN_DISPATCHER.md)
