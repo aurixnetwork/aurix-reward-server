@@ -22,6 +22,16 @@ const planned = {
 };
 
 describe("authorization repository uniqueness", () => {
+  it("lists only active authorization lifecycle states for a claimant", async () => {
+    const execute = vi.fn().mockResolvedValue([[], []]);
+    await new MySqlAuthorizationRepository({ execute } as unknown as Pool)
+      .listActiveByCampaignClaimant(planned.campaignId, planned.claimant);
+    const sql = String(execute.mock.calls[0]?.[0]);
+    expect(sql).toContain("'PLANNED','SIGNED','READY'");
+    expect(sql).not.toContain("'CONSUMED'");
+    expect(sql).toContain("ORDER BY id DESC");
+  });
+
   it.each(["uq_reward_authorization_jobs_reward_id", "uq_reward_authorization_jobs_active_nonce"])(
     "rejects a database collision on %s",
     async (constraint) => {

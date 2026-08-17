@@ -7,6 +7,8 @@ import { WalletValidationCommandError } from "../wallets/wallet-errors.js";
 import { AuthorizationBlockedError } from "../authorization/authorization-service.js";
 import { ClaimExecutionError } from "../claim/claim-execution-error.js";
 import { ClaimPersistenceError } from "../claim/claim-persistence-error.js";
+import { BatchRunAbortedError } from "../batch/batch-types.js";
+import { presentBatchRun } from "../batch/batch-output.js";
 
 type CommandLogger = Pick<Logger, "error" | "info">;
 
@@ -56,6 +58,9 @@ export function safeErrorDetails(error: unknown): Record<string, unknown> {
         ? { cleanupFailures: error.cleanupFailures }
         : {}),
     };
+  }
+  if (error instanceof BatchRunAbortedError) {
+    return { report: presentBatchRun(error.report), type: error.name };
   }
   if (error instanceof Error) {
     return { type: error.name };

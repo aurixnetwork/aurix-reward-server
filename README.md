@@ -84,8 +84,11 @@ npm run authorization:verify:test -- --job-id <uuid>
 npm run claim:plan:test -- --authorization-job-id <uuid>
 npm run claim:status:test -- --authorization-job-id <uuid>
 npm run claim:reconcile:test
+npm run claim:batch:plan:test -- --campaign-id <bytes32> --wallet-id-start 1 --wallet-id-end 10 --amount 0.1
 # Owner-reviewed operation only; disabled unless CLAIM_EXECUTION_ENABLED=true
 npm run claim:execute:test -- --authorization-job-id <uuid>
+# Owner-reviewed one-shot operation only; sequential and disabled by default
+CLAIM_EXECUTION_ENABLED=true npm run claim:batch:execute:test -- --campaign-id <bytes32> --wallet-id-start 1 --wallet-id-end 10 --amount 0.1
 ```
 
 The health check validates RPC reachability and chain identity. The preflight
@@ -129,4 +132,5 @@ Wallet signs the final transaction and pays tBNB gas.
 - [tBNB funding operations](docs/TBNB_FUNDING.md)
 - [Reward authorization](docs/REWARD_AUTHORIZATION.md)
 - [Claim execution](docs/CLAIM_EXECUTION.md)
+- [10-wallet Testnet batch reward pilot](docs/10_WALLET_BATCH_PILOT.md)
 - [Test Campaign operations](docs/TEST_CAMPAIGN.md)

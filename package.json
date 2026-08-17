@@ -34,7 +34,9 @@
     "claim:plan:test": "tsx src/cli/plan-claim.ts",
     "claim:execute:test": "tsx src/cli/execute-claim.ts",
     "claim:status:test": "tsx src/cli/claim-status.ts",
-    "claim:reconcile:test": "tsx src/cli/reconcile-claim.ts"
+    "claim:reconcile:test": "tsx src/cli/reconcile-claim.ts",
+    "claim:batch:plan:test": "tsx src/cli/plan-batch-claims.ts",
+    "claim:batch:execute:test": "tsx src/cli/execute-batch-claims.ts"
   },
   "dependencies": {
     "dotenv": "17.4.2",

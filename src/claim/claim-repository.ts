@@ -79,6 +79,20 @@ export interface ClaimRepository {
 export class MySqlClaimRepository implements ClaimRepository {
   public constructor(private readonly pool: Pool) {}
 
+  public async findUnresolvedByWalletCampaign(
+    walletId: string,
+    campaignId: string,
+  ): Promise<ClaimJobRecord | undefined> {
+    const [rows] = await this.pool.execute<ClaimJobRow[]>(
+      `${selectColumns()}
+        WHERE wallet_id = ? AND campaign_id = ?
+          AND status IN ('SIGNED','BROADCAST','PENDING_REVIEW')
+        ORDER BY id DESC LIMIT 1`,
+      [walletId, campaignId],
+    );
+    return rows[0] ? mapRow(rows[0]) : undefined;
+  }
+
   public async findByAuthorizationJobId(
     authorizationJobId: string,
   ): Promise<ClaimJobRecord | undefined> {

@@ -22,6 +22,7 @@ import { createDatabasePool } from "../database/pool.js";
 import { MySqlWalletRepository } from "../wallets/wallet-repository.js";
 
 export interface ClaimCommandContext {
+  readonly authorizationReader: RewardContractClient;
   readonly authorizationRepository: MySqlAuthorizationRepository;
   readonly claimRepository: MySqlClaimRepository;
   readonly close: () => Promise<void>;
@@ -35,8 +36,9 @@ export interface ClaimCommandContext {
   readonly walletRepository: MySqlWalletRepository;
 }
 
-export async function createClaimCommandContext(): Promise<ClaimCommandContext> {
-  const config = loadEnvironment();
+export async function createClaimCommandContext(
+  config: AppConfig = loadEnvironment(),
+): Promise<ClaimCommandContext> {
   if (!config.database) throw new Error("Database configuration is required for claim commands");
   const pool = createDatabasePool(config.database);
   const rpcPool = createRpcProviderPool(config);
@@ -48,7 +50,12 @@ export async function createClaimCommandContext(): Promise<ClaimCommandContext> 
     const providers = connected.healthyEndpoints.map(
       (endpoint) => endpoint.provider as unknown as ClaimProvider,
     );
+    const authorizationReader = new RewardContractClient(
+      connected.endpoint.provider,
+      config.contracts.rewardContractAddress,
+    );
     return {
+      authorizationReader,
       authorizationRepository: new MySqlAuthorizationRepository(pool),
       claimRepository: new MySqlClaimRepository(pool),
       close: async () => {

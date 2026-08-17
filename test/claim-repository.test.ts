@@ -23,6 +23,16 @@ const input = {
 } as const;
 
 describe("claim repository", () => {
+  it("finds unresolved claim evidence by wallet and campaign", async () => {
+    const execute = vi.fn().mockResolvedValue([[], []]);
+    await new MySqlClaimRepository({ execute } as unknown as Pool)
+      .findUnresolvedByWalletCampaign(input.walletId, input.campaignId);
+    const sql = String(execute.mock.calls[0]?.[0]);
+    expect(sql).toContain("wallet_id = ? AND campaign_id = ?");
+    expect(sql).toContain("'SIGNED','BROADCAST','PENDING_REVIEW'");
+    expect(execute.mock.calls[0]?.[1]).toEqual([input.walletId, input.campaignId]);
+  });
+
   it("reports getConnection failures without attempting transaction cleanup", async () => {
     const driverError = mysqlError("ETIMEDOUT", -60, "HY000");
     const pool = { getConnection: vi.fn().mockRejectedValue(driverError) } as unknown as Pool;

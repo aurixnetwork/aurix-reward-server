@@ -156,6 +156,9 @@ signing. Status and preflight never broadcast.
   RPC uncertainty handling, and safe public presentation.
 - `src/claim` owns exact calldata, current-state preflight, claimant-only signing,
   claim evidence, confirmation validation, idempotency, and reconciliation.
+- `src/batch` owns read-only multi-wallet inspection and concurrency-one
+  orchestration of the existing authorization, claim, and reconciliation
+  lifecycle. It introduces no second claim state machine.
 - `src/cli` owns explicit operational commands and always destroys RPC providers
   or closes database pools.
 
@@ -181,3 +184,19 @@ The User Wallet—not the Approver—is sender, gas payer, and recipient. The
 Approver's EIP-712 signature is a calldata argument. `rewardNonce` is contract
 replay state; the pending Ethereum account nonce is the transaction nonce.
 Uncertain hashes are reconciled and never replaced automatically.
+
+## Phase 6A sequential batch orchestration
+
+The first batch runner is an operational coordinator, not a scheduler. It
+processes an inclusive wallet database-ID range in ascending order with fixed
+concurrency one. Read-only planning never signs or persists authorization data.
+Execution first runs existing reconciliation, then reuses the normal
+authorization/reissue, claim-plan, signing, persistence, broadcast, and exact
+confirmation path for each eligible wallet. Expected wallet blockers do not
+abort the range; uncertain claim results and systemic persistence/RPC failures
+stop it before another wallet can consume shared campaign budget.
+
+Existing authorization and claim job tables remain the durable audit and
+idempotency record, so this phase adds no batch-run migration. A scheduler is
+still absent; any future scheduler may trigger planning but cannot replace the
+contract claim interval as the authorization boundary.

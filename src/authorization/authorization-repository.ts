@@ -72,6 +72,20 @@ export class AuthorizationReissueRequiresClaimReconciliationError extends Error 
 export class MySqlAuthorizationRepository implements AuthorizationRepository {
   public constructor(private readonly pool: Pool) {}
 
+  public async listActiveByCampaignClaimant(
+    campaignId: string,
+    claimant: string,
+  ): Promise<readonly AuthorizationJobRecord[]> {
+    const [rows] = await this.pool.execute<AuthorizationRow[]>(
+      `${selectColumns()}
+        WHERE campaign_id = ? AND claimant_address = ?
+          AND status IN ('PLANNED','SIGNED','READY')
+        ORDER BY id DESC`,
+      [campaignId, getAddress(claimant)],
+    );
+    return rows.map(mapRow);
+  }
+
   public async findByJobId(
     jobId: string,
   ): Promise<AuthorizationJobRecord | undefined> {
